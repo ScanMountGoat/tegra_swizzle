@@ -16,15 +16,16 @@ padding the address on the right with 4 bits since blocks have 16 bytes.
 
 | Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
 | --- | --- | --- | --- | --- | --- |
-| 64  | 64  | 16 | 16 | 000011010010 | 000000101101 |
-| 128 | 128 | 32 | 32 | 001110010010 | 000001101101 |
-| 256 | 256 | 64 | 64 | 111100010010 | 000011101101 |
+| 64  | 64  | 16  | 16  | 00000011010010 | 00000000101101 |
+| 128 | 128 | 32  | 32  | 00001110010010 | 00000001101101 |
+| 256 | 256 | 64  | 64  | 00111100010010 | 00000011101101 |
+| 512 | 512 | 128 | 128 | 11111000010010 | 00000111101101 |
 
 ## Compressed BC1 Block Swizzle Patterns 
 Swizzle patterns to find the corresponding block index when swizzling or deswizzling.  
 Each 4x4 tile is represented as a single 8 byte block. The starting address of each block requires 
 padding the address on the right with 3 bits since blocks have 16 bytes.  
 
-| Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern Y Pattern |
-| --- | --- | --- | --- | --- |
+| Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
+| --- | --- | --- | --- | --- | --- |
 | 128 | 128 | 32 | 32 | 001100100101 | 000011011010 |

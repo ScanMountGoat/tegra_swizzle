@@ -5,47 +5,7 @@ use std::{
 };
 
 mod nutexb;
-
-fn swizzle_experimental<T: Copy>(
-    x_mask: i32,
-    y_mask: i32,
-    width: usize,
-    height: usize,
-    source: &[T],
-    destination: &mut [T],
-    deswizzle: bool,
-    element_count_per_copy: usize,
-) {
-    // The bit masking trick to increment the offset is taken from here:
-    // https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/
-    // The masks allow "skipping over" certain bits when incrementing.
-    let mut offset_x = 0i32;
-    let mut offset_y = 0i32;
-
-    let mut dst = 0;
-    for _ in 0..height {
-        for _ in 0..width {
-            // The bit patterns don't overlap, so just sum the offsets.
-            let src = (offset_x + offset_y) as usize;
-
-            // Swap the offets for swizzling or deswizzling.
-            // TODO: The condition doesn't need to be in the inner loop.
-            // TODO: Have an inner function and swap the source/destination arguments in the outer function?
-            if deswizzle {
-                (&mut destination[dst..dst + element_count_per_copy])
-                    .copy_from_slice(&source[src..src + element_count_per_copy]);
-            } else {
-                (&mut destination[src..src + element_count_per_copy])
-                    .copy_from_slice(&source[dst..dst + element_count_per_copy]);
-            }
-
-            // Use the 2's complement identity (offset + !mask + 1 == offset - mask).
-            offset_x = (offset_x - x_mask) & x_mask;
-            dst += element_count_per_copy;
-        }
-        offset_y = (offset_y - y_mask) & y_mask;
-    }
-}
+mod swizzle;
 
 fn read_blocks<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<T> {
     let mut raw = Cursor::new(std::fs::read(path).unwrap());
