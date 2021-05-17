@@ -58,14 +58,13 @@ fn read_blocks<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<T> {
 }
 
 // TODO: Proper error handling.
-// Create a lut for deswizzling swizzled blocks.
 fn create_swizzled_to_linear_lut<T: PartialEq + std::fmt::Debug + std::fmt::LowerHex>(
     linear_blocks: &[T],
     deswizzled_blocks: &[T],
 ) -> Vec<i64> {
     // TODO: Proper error handling.
 
-    // Find the block index in the deswizzled data for each index in the linear data.
+    // For each deswizzled output block index, find the corresponding input block index.
     // This is O(n^2) where n is the number of blocks since we don't decode the block data to get the index.
     let mut output = Vec::new();
     for block in deswizzled_blocks.iter() {
@@ -85,9 +84,9 @@ fn deswizzle_blocks<T: Default + Copy + Clone>(
     deswizzle_lut: &[i64],
 ) -> Vec<T> {
     let mut deswizzled_blocks = vec![T::default(); swizzled_blocks.len()];
-    for (swizzle, linear) in deswizzle_lut.iter().enumerate() {
+    for (i, linear) in deswizzle_lut.iter().enumerate() {
         if *linear >= 0 {
-            deswizzled_blocks[*linear as usize] = swizzled_blocks[swizzle];
+            deswizzled_blocks[i] = swizzled_blocks[*linear as usize];
         }
     }
 
@@ -99,9 +98,9 @@ fn swizzle_blocks<T: Default + Copy + Clone>(
     deswizzle_lut: &[i64],
 ) -> Vec<T> {
     let mut swizzled_blocks = vec![T::default(); linear_blocks.len()];
-    for (swizzle, linear) in deswizzle_lut.iter().enumerate() {
+    for (i, linear) in deswizzle_lut.iter().enumerate() {
         if *linear >= 0 {
-            swizzled_blocks[swizzle] = linear_blocks[*linear as usize];
+            swizzled_blocks[*linear as usize] = linear_blocks[i];
         }
     }
 
@@ -174,17 +173,17 @@ pub fn calculate_swizzle_patterns<
     deswizzled_file: P,
     width: usize,
     height: usize,
+    deswizzled_block_count: usize
 ) {
     let linear_blocks = read_blocks::<_, T>(swizzled_file);
     let deswizzled_blocks = read_blocks::<_, T>(deswizzled_file);
 
     let lut = create_swizzled_to_linear_lut(&linear_blocks, &deswizzled_blocks);
-
-    // TODO: This probably should have less verbose output.
-    assert_eq!(swizzle_blocks(&linear_blocks, &lut)[..6400], deswizzled_blocks[..6400]);
-    // assert_eq!(swizzle_blocks(&deswizzled_blocks, &lut)[..6400], linear_blocks[..6400]);
-
     print_swizzle_patterns(&lut, width, height);
+
+    // TODO: This probably should have less verbose output on failure.
+    assert_eq!(deswizzle_blocks(&linear_blocks, &lut)[..deswizzled_block_count], deswizzled_blocks[..deswizzled_block_count]);
+    assert_eq!(swizzle_blocks(&deswizzled_blocks, &lut)[..deswizzled_block_count], linear_blocks[..deswizzled_block_count]);
 }
 
 pub fn create_nutexb(

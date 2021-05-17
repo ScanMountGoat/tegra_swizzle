@@ -128,6 +128,7 @@ fn main() {
             let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
             let swizzled_file = sub_m.value_of("swizzled").unwrap();
             let deswizzled_file = sub_m.value_of("deswizzled").unwrap();
+            let deswizzled_block_count = width * height / 16;
 
             // TODO: RGBA
             match sub_m.value_of("format").unwrap() {
@@ -136,18 +137,21 @@ fn main() {
                     deswizzled_file,
                     width,
                     height,
+                    deswizzled_block_count
                 ),
                 "bc3" => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
+                    deswizzled_block_count
                 ),
                 "bc7" => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
+                    deswizzled_block_count
                 ),
                 _ => unreachable!(),
             }
