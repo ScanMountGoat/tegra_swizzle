@@ -1,4 +1,5 @@
 use clap::{App, AppSettings, Arg, SubCommand};
+use nutexb_swizzle::{ImageFormat, deswizzle_bc3_bc7, swizzle_bc3_bc7};
 use std::path::Path;
 
 fn main() {
@@ -75,6 +76,50 @@ fn main() {
                         .takes_value(true),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("swizzle")
+                .arg(
+                    Arg::with_name("input")
+                        .short("i")
+                        .long("input")
+                        .help("The swizzled input data")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .help("The deswizzled output data")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(&format_arg)
+                .arg(&width_arg)
+                .arg(&height_arg),
+        )
+        .subcommand(
+            SubCommand::with_name("deswizzle")
+                .arg(
+                    Arg::with_name("input")
+                        .short("i")
+                        .long("input")
+                        .help("The swizzled input data")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .help("The deswizzled output data")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(&format_arg)
+                .arg(&width_arg)
+                .arg(&height_arg),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -82,12 +127,19 @@ fn main() {
             let output = Path::new(sub_m.value_of("output").unwrap());
             let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
             let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
+            let format =
+                nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+
             let pixel_count = width * height;
             let pixels_per_tile = 4 * 4;
 
+            // Allow manually overriding the image size.
             let block_count: usize = match sub_m.value_of("blockcount") {
                 Some(v) => v.parse().unwrap(),
-                None => pixel_count / pixels_per_tile
+                None => match format {
+                    ImageFormat::Rgba => width * height * 4,
+                    _ => pixel_count / pixels_per_tile,
+                },
             };
 
             let mut writer = std::fs::File::create(output).unwrap();
@@ -104,22 +156,15 @@ fn main() {
                         .unwrap()
                         .to_str()
                         .unwrap(),
-                    sub_m.value_of("format").unwrap(),
+                    &format,
                     block_count,
                 );
             } else {
-                // TODO: RGBA
-                match sub_m.value_of("format").unwrap() {
-                    "bc1" => {
-                        nutexb_swizzle::write_bc1_lut(&mut writer, block_count)
-                    }
-                    "bc3" => {
-                        nutexb_swizzle::write_bc3_lut(&mut writer, block_count)
-                    }
-                    "bc7" => {
-                        nutexb_swizzle::write_bc7_lut(&mut writer, block_count)
-                    }
-                    _ => (),
+                match format {
+                    ImageFormat::Rgba => nutexb_swizzle::write_rgba_lut(&mut writer, block_count),
+                    ImageFormat::Bc1 => nutexb_swizzle::write_bc1_lut(&mut writer, block_count),
+                    ImageFormat::Bc3 => nutexb_swizzle::write_bc3_lut(&mut writer, block_count),
+                    ImageFormat::Bc7 => nutexb_swizzle::write_bc7_lut(&mut writer, block_count),
                 }
             };
         }
@@ -128,32 +173,73 @@ fn main() {
             let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
             let swizzled_file = sub_m.value_of("swizzled").unwrap();
             let deswizzled_file = sub_m.value_of("deswizzled").unwrap();
+            let format =
+                nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+
+            // The bcn compressed formats all use 4x4 pixel tiles.
             let deswizzled_block_count = width * height / 16;
 
-            // TODO: RGBA
-            match sub_m.value_of("format").unwrap() {
-                "bc1" => nutexb_swizzle::calculate_swizzle_patterns::<u64, _>(
+            match format {
+                ImageFormat::Rgba => nutexb_swizzle::calculate_swizzle_patterns::<u32, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
-                    deswizzled_block_count
+                    width * height,
                 ),
-                "bc3" => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
+                ImageFormat::Bc1 => nutexb_swizzle::calculate_swizzle_patterns::<u64, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
-                    deswizzled_block_count
+                    deswizzled_block_count,
                 ),
-                "bc7" => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
+                ImageFormat::Bc3 => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
-                    deswizzled_block_count
+                    deswizzled_block_count,
                 ),
-                _ => unreachable!(),
+                ImageFormat::Bc7 => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
+                    swizzled_file,
+                    deswizzled_file,
+                    width,
+                    height,
+                    deswizzled_block_count,
+                ),
+            }
+        }
+        ("swizzle", Some(sub_m)) => {
+            let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
+            let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
+            let input = sub_m.value_of("input").unwrap();
+            let output = sub_m.value_of("output").unwrap();
+            let format =
+                nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+
+            // TODO: swizzle the input
+            match format {
+                ImageFormat::Rgba => (),
+                ImageFormat::Bc1 => (),
+                ImageFormat::Bc3 => swizzle_bc3_bc7(input, output, width, height),
+                ImageFormat::Bc7 => swizzle_bc3_bc7(input, output, width, height),
+            }
+        }
+        ("deswizzle", Some(sub_m)) => {
+            let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
+            let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
+            let input = sub_m.value_of("input").unwrap();
+            let output = sub_m.value_of("output").unwrap();
+            let format =
+                nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+
+            // TODO: deswizzle the input
+            match format {
+                ImageFormat::Rgba => (),
+                ImageFormat::Bc1 => (),
+                ImageFormat::Bc3 => deswizzle_bc3_bc7(input, output, width, height),
+                ImageFormat::Bc7 => deswizzle_bc3_bc7(input, output, width, height),
             }
         }
         _ => (),

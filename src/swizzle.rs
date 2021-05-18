@@ -1,4 +1,4 @@
-fn swizzle_experimental<T: Copy>(
+pub fn swizzle_experimental<T: Copy>(
     x_mask: i32,
     y_mask: i32,
     width: usize,
@@ -6,7 +6,6 @@ fn swizzle_experimental<T: Copy>(
     source: &[T],
     destination: &mut [T],
     deswizzle: bool,
-    element_count_per_copy: usize,
 ) {
     // The bit masking trick to increment the offset is taken from here:
     // https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/
@@ -24,22 +23,22 @@ fn swizzle_experimental<T: Copy>(
             // TODO: The condition doesn't need to be in the inner loop.
             // TODO: Have an inner function and swap the source/destination arguments in the outer function?
             if deswizzle {
-                (&mut destination[dst..dst + element_count_per_copy])
-                    .copy_from_slice(&source[src..src + element_count_per_copy]);
+                (&mut destination[dst..dst + 1])
+                    .copy_from_slice(&source[src..src + 1]);
             } else {
-                (&mut destination[src..src + element_count_per_copy])
-                    .copy_from_slice(&source[dst..dst + element_count_per_copy]);
+                (&mut destination[src..src + 1])
+                    .copy_from_slice(&source[dst..dst + 1]);
             }
 
             // Use the 2's complement identity (offset + !mask + 1 == offset - mask).
             offset_x = (offset_x - x_mask) & x_mask;
-            dst += element_count_per_copy;
+            dst += 1;
         }
         offset_y = (offset_y - y_mask) & y_mask;
     }
 }
 
-fn calculate_swizzle_pattern(width: u32, height: u32) -> (u32, u32) {
+pub fn calculate_swizzle_pattern(width: u32, height: u32) -> (u32, u32) {
     // TODO: This only works for powers of two.
     // TODO: Use the code from the Tegra TRM?
     
