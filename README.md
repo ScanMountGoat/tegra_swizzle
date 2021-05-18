@@ -1,6 +1,11 @@
 # nutexb_swizzle
 Documentation and tools for Tegra X1 swizzling used for nutexb texture files for Smash Ultimate. See the [swizzle](swizzle.md) page for documentation. The swizzle code and bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/). 
 
+The program can automatically generate lookup tables for swizzling and deswizzling texture data based on a pair of swizzled and unswizzled image data files. 
+The generated values for the "swizzled" input are unique for each block of image data. The lookup table is computed by finding the new location of each input block in the deswizzled output file. 
+For uncompressed RGBA data, unique values are generated per pixel. For compressed data, unique values are generated for each 4x4 pixel tile. This is handled automatically by specifying the format with 
+`--format`. 
+
 ## Generating Test Data
 1. Write unique block values to the Nutexb. Pad the image size with `--blockcount` as needed.  
 `cargo run -- write_addresses -w 512 -h 512 -f bc7 -o "def_mario_001_col.nutexb" --blockcount 43872` 
