@@ -11,7 +11,7 @@ pub enum ImageFormat {
     Rgba,
     Bc1,
     Bc3,
-    Bc7
+    Bc7,
 }
 
 pub fn swizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, height: usize) {
@@ -24,7 +24,15 @@ pub fn swizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, height
     let height_in_blocks = height / 4;
 
     let mut output_data = vec![0u128; width_in_blocks * height_in_blocks];
-    swizzle::swizzle_experimental(x_mask as i32, y_mask as i32, width_in_blocks, height_in_blocks, &input_data, &mut output_data[..], false);
+    swizzle::swizzle_experimental(
+        x_mask as i32,
+        y_mask as i32,
+        width_in_blocks,
+        height_in_blocks,
+        &input_data,
+        &mut output_data[..],
+        false,
+    );
 
     let mut writer = std::fs::File::create(output).unwrap();
     for value in output_data {
@@ -43,7 +51,15 @@ pub fn deswizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, heig
     let height_in_blocks = height / 4;
 
     let mut output_data = vec![0u128; width_in_blocks * height_in_blocks];
-    swizzle::swizzle_experimental(x_mask as i32, y_mask as i32, width_in_blocks, height_in_blocks, &input_data, &mut output_data[..], true);
+    swizzle::swizzle_experimental(
+        x_mask as i32,
+        y_mask as i32,
+        width_in_blocks,
+        height_in_blocks,
+        &input_data,
+        &mut output_data[..],
+        true,
+    );
 
     let mut writer = std::fs::File::create(output).unwrap();
     for value in output_data {
@@ -61,33 +77,65 @@ pub fn try_get_image_format(format: &str) -> std::result::Result<ImageFormat, &s
     }
 }
 
+fn read_vec<T: BinRead, R: BinReaderExt>(reader: &mut R) -> Vec<T> {
+    let mut result = Vec::new();
+    while let Ok(block) = reader.read_le::<T>() {
+        result.push(block);
+    }
+    result
+}
+
 fn read_blocks<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<T> {
     let mut raw = Cursor::new(std::fs::read(path).unwrap());
+    read_vec(&mut raw)
+}
 
-    let mut blocks = Vec::new();
-    while let Ok(block) = raw.read_le::<T>() {
-        blocks.push(block);
+fn read_mipmaps_dds<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<Vec<T>> {
+    let mut reader = std::fs::File::open(path).unwrap();
+    let dds = ddsfile::Dds::read(&mut reader).unwrap();
+
+    // Each mip level is 4x smaller than the previous level.
+    let mut mip_offset = 0;
+    let mut mip_size = dds.get_main_texture_size().unwrap() as usize;
+    let min_mipmap_size = dds.get_min_mipmap_size_in_bytes() as usize;
+
+    let mut mip_data = Vec::new();
+    for _ in 0..dds.get_num_mipmap_levels() {
+        let mut reader = Cursor::new(&dds.data[mip_offset..mip_offset + mip_size]);
+        let blocks = read_vec(&mut reader);
+        mip_data.push(blocks);
+
+        // Some compressed formats have a minimum size.
+        mip_offset += std::cmp::max(mip_size, min_mipmap_size);
+        mip_size /= 4;
     }
-    blocks
+
+    mip_data
 }
 
 fn create_deswizzle_lut<T: PartialEq>(
-    linear_blocks: &[T],
-    deswizzled_blocks: &[T],
-) -> Vec<i64> {
-    // For each deswizzled output block index, find the corresponding input block index.
-    // This is O(n^2) where n is the number of blocks since we don't decode the block data to get the index.
-    let mut output = Vec::new();
-    for block in deswizzled_blocks.iter() {
-        match linear_blocks.iter().position(|b| b == block) {
-            Some(value) => output.push(value as i64),
-            None => {
-                output.push(-1);
+    linear_mipmaps: &[Vec<T>],
+    deswizzled_mipmaps: &[Vec<T>],
+) -> Vec<Vec<i64>> {
+    let mut luts = Vec::new();
+
+    for (linear_mip, deswizzled_mip) in deswizzled_mipmaps.iter().zip(linear_mipmaps) {
+        // For each deswizzled output block index, find the corresponding input block index.
+        // This is O(n^2) where n is the number of blocks since we don't decode the block data to get the index.
+        let mut mip_lut = Vec::new();
+        for block in deswizzled_mip.iter() {
+            match linear_mip.iter().position(|b| b == block) {
+                Some(value) => mip_lut.push(value as i64),
+                None => {
+                    mip_lut.push(-1);
+                }
             }
         }
+
+        luts.push(mip_lut);
     }
 
-    output
+    luts
 }
 
 fn deswizzle_blocks<T: Default + Copy + Clone>(
@@ -104,10 +152,7 @@ fn deswizzle_blocks<T: Default + Copy + Clone>(
     deswizzled_blocks
 }
 
-fn swizzle_blocks<T: Default + Copy + Clone>(
-    linear_blocks: &[T],
-    deswizzle_lut: &[i64],
-) -> Vec<T> {
+fn swizzle_blocks<T: Default + Copy + Clone>(linear_blocks: &[T], deswizzle_lut: &[i64]) -> Vec<T> {
     let mut swizzled_blocks = vec![T::default(); linear_blocks.len()];
     for (i, linear) in deswizzle_lut.iter().enumerate() {
         if *linear >= 0 {
@@ -154,54 +199,72 @@ pub fn write_bc1_lut<W: Write>(writer: &mut W, block_count: usize) {
 }
 
 fn print_swizzle_patterns(deswizzle_lut: &[i64], width: usize, height: usize) {
+    if width == 0 || height == 0 {
+        return;
+    }
+
     println!("width: {:?}, height: {:?}", width, height);
     let tile_size = 4;
-    let x_pattern_index = (width / tile_size) - 1;
-    let y_pattern_index = (width / tile_size) * (height / tile_size - 1);
+    let width_in_tiles = width / tile_size;
+    let height_in_tiles = height / tile_size;
+
+    let x_pattern_index = if width_in_tiles > 1 {
+        width_in_tiles - 1
+    } else {
+        0
+    };
+    let y_pattern_index = if height_in_tiles > 1 {
+        width_in_tiles * (height_in_tiles - 1)
+    } else {
+        0
+    };
 
     // Left pad to 16 to align the output for dimensions up to (65536, 65536).
-    println!(
-        "x: {:016b}", deswizzle_lut[x_pattern_index]
-    );
-    println!(
-        "y: {:016b}", deswizzle_lut[y_pattern_index]
-    );
-    // "Invert" the deswizzle LUT to create the swizzle LUT.
-    // println!(
-    //     "x: {:016b}",
-    //     deswizzle_lut
-    //         .iter()
-    //         .position(|i| *i as usize == x_pattern_index)
-    //         .unwrap()
-    // );
-    // println!(
-    //     "y: {:016b}",
-    //     deswizzle_lut
-    //         .iter()
-    //         .position(|i| *i as usize == y_pattern_index)
-    //         .unwrap()
-    // );
+    println!("x: {:016b}", deswizzle_lut[x_pattern_index]);
+    println!("y: {:016b}", deswizzle_lut[y_pattern_index]);
 }
 
-pub fn calculate_swizzle_patterns<
-    T: BinRead + PartialEq + std::fmt::Debug + Default + Copy + std::fmt::LowerHex,
-    P: AsRef<Path>,
->(
+pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<Path>>(
     swizzled_file: P,
     deswizzled_file: P,
     width: usize,
     height: usize,
-    deswizzled_block_count: usize
+    deswizzled_block_count: usize,
 ) {
-    let linear_blocks = read_blocks::<_, T>(swizzled_file);
-    let deswizzled_blocks = read_blocks::<_, T>(deswizzled_file);
+    let swizzled_mipmaps = match std::path::Path::new(swizzled_file.as_ref())
+        .extension()
+        .unwrap()
+        .to_str()
+        .unwrap()
+    {
+        "dds" => read_mipmaps_dds(&swizzled_file),
+        _ => vec![read_blocks::<_, T>(&swizzled_file)],
+    };
 
-    let lut = create_deswizzle_lut(&linear_blocks, &deswizzled_blocks);
-    print_swizzle_patterns(&lut, width, height);
+    let deswizzled_mipmaps = match std::path::Path::new(deswizzled_file.as_ref())
+        .extension()
+        .unwrap()
+        .to_str()
+        .unwrap()
+    {
+        "dds" => read_mipmaps_dds(&deswizzled_file),
+        _ => vec![read_blocks::<_, T>(&deswizzled_file)],
+    };
+
+    let lut = create_deswizzle_lut(&swizzled_mipmaps, &deswizzled_mipmaps);
+
+    let mut mip_width = width;
+    let mut mip_height = height;
+    for mip_lut in lut {
+        print_swizzle_patterns(&mip_lut, mip_width, mip_height);
+        mip_width /= 2;
+        mip_height /= 2;
+    }
 
     // TODO: This probably should have less verbose output on failure.
-    assert_eq!(deswizzle_blocks(&linear_blocks, &lut)[..deswizzled_block_count], deswizzled_blocks[..deswizzled_block_count]);
-    assert_eq!(swizzle_blocks(&deswizzled_blocks, &lut)[..deswizzled_block_count], linear_blocks[..deswizzled_block_count]);
+    // TODO: Check each mipmap
+    // assert_eq!(deswizzle_blocks(&linear_blocks, &lut)[..deswizzled_block_count], deswizzled_blocks[..deswizzled_block_count]);
+    // assert_eq!(swizzle_blocks(&deswizzled_blocks, &lut)[..deswizzled_block_count], linear_blocks[..deswizzled_block_count]);
 }
 
 pub fn create_nutexb(
@@ -210,7 +273,7 @@ pub fn create_nutexb(
     height: usize,
     name: &str,
     format: &ImageFormat,
-    block_count: usize
+    block_count: usize,
 ) {
     let nutexb_format = match format {
         ImageFormat::Rgba => 0,

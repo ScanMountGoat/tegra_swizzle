@@ -180,28 +180,28 @@ fn main() {
             let deswizzled_block_count = width * height / 16;
 
             match format {
-                ImageFormat::Rgba => nutexb_swizzle::calculate_swizzle_patterns::<u32, _>(
+                ImageFormat::Rgba => nutexb_swizzle::guess_swizzle_patterns::<u32, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
                     width * height,
                 ),
-                ImageFormat::Bc1 => nutexb_swizzle::calculate_swizzle_patterns::<u64, _>(
+                ImageFormat::Bc1 => nutexb_swizzle::guess_swizzle_patterns::<u64, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
                     deswizzled_block_count,
                 ),
-                ImageFormat::Bc3 => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
+                ImageFormat::Bc3 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
                     deswizzled_block_count,
                 ),
-                ImageFormat::Bc7 => nutexb_swizzle::calculate_swizzle_patterns::<u128, _>(
+                ImageFormat::Bc7 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
