@@ -113,29 +113,34 @@ fn read_mipmaps_dds<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<Vec<T>> {
     mip_data
 }
 
-fn create_deswizzle_lut<T: PartialEq>(
+fn create_deswizzle_luts<T: PartialEq>(
     linear_mipmaps: &[Vec<T>],
     deswizzled_mipmaps: &[Vec<T>],
 ) -> Vec<Vec<i64>> {
     let mut luts = Vec::new();
 
     for (linear_mip, deswizzled_mip) in deswizzled_mipmaps.iter().zip(linear_mipmaps) {
-        // For each deswizzled output block index, find the corresponding input block index.
-        // This is O(n^2) where n is the number of blocks since we don't decode the block data to get the index.
-        let mut mip_lut = Vec::new();
-        for block in deswizzled_mip.iter() {
-            match linear_mip.iter().position(|b| b == block) {
-                Some(value) => mip_lut.push(value as i64),
-                None => {
-                    mip_lut.push(-1);
-                }
-            }
-        }
-
+        let mip_lut = create_mip_deswizzle_lut(linear_mip, deswizzled_mip);
         luts.push(mip_lut);
     }
 
     luts
+}
+
+fn create_mip_deswizzle_lut<T: PartialEq>(linear: &[T], deswizzled: &[T]) -> Vec<i64> {
+    // For each deswizzled output block index, find the corresponding input block index.
+    // This is O(n^2) where n is the number of blocks since we don't decode the block data to get the index.
+    let mut mip_lut = Vec::new();
+    for block in deswizzled {
+        match linear.iter().position(|b| b == block) {
+            Some(value) => mip_lut.push(value as i64),
+            None => {
+                mip_lut.push(-1);
+            }
+        }
+    }
+
+    mip_lut
 }
 
 fn deswizzle_blocks<T: Default + Copy + Clone>(
@@ -199,7 +204,7 @@ pub fn write_bc1_lut<W: Write>(writer: &mut W, block_count: usize) {
 }
 
 fn print_swizzle_patterns(deswizzle_lut: &[i64], width: usize, height: usize) {
-    if width == 0 || height == 0 {
+    if width == 0 || height == 0 || deswizzle_lut.is_empty() {
         return;
     }
 
@@ -251,14 +256,40 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
         _ => vec![read_blocks::<_, T>(&deswizzled_file)],
     };
 
-    let lut = create_deswizzle_lut(&swizzled_mipmaps, &deswizzled_mipmaps);
+    if swizzled_mipmaps.len() == 1 && deswizzled_mipmaps.len() > 1 {
+        // Assume the input blocks cover all mip levels.
+        // This allows for calculating mip offsets and sizes.
+        let mut mip_width = width;
+        let mut mip_height = height;
+        for mip in deswizzled_mipmaps {
+            // TODO: Is this necessary for all formats?
+            if mip_width < 4 || mip_height < 4 {
+                break;
+            }
 
-    let mut mip_width = width;
-    let mut mip_height = height;
-    for mip_lut in lut {
-        print_swizzle_patterns(&mip_lut, mip_width, mip_height);
-        mip_width /= 2;
-        mip_height /= 2;
+            let mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
+            print_swizzle_patterns(&mip_lut, mip_width, mip_height);
+            println!("Start Index: {:?}", mip_lut.iter().min().unwrap());
+            println!("End Index: {:?}", mip_lut.iter().max().unwrap());
+            mip_width /= 2;
+            mip_height /= 2;
+        }
+    } else {
+        // Compare both mipmaps.
+        let lut = create_deswizzle_luts(&swizzled_mipmaps, &deswizzled_mipmaps);
+
+        let mut mip_width = width;
+        let mut mip_height = height;
+        for mip_lut in lut {
+            // TODO: Is this necessary for all formats?
+            if mip_width < 4 || mip_height < 4 {
+                break;
+            }
+
+            print_swizzle_patterns(&mip_lut, mip_width, mip_height);
+            mip_width /= 2;
+            mip_height /= 2;
+        }
     }
 
     // TODO: This probably should have less verbose output on failure.
