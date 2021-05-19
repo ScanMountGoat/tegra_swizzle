@@ -23,11 +23,9 @@ pub fn swizzle_experimental<T: Copy>(
             // TODO: The condition doesn't need to be in the inner loop.
             // TODO: Have an inner function and swap the source/destination arguments in the outer function?
             if deswizzle {
-                (&mut destination[dst..dst + 1])
-                    .copy_from_slice(&source[src..src + 1]);
+                (&mut destination[dst..dst + 1]).copy_from_slice(&source[src..src + 1]);
             } else {
-                (&mut destination[src..src + 1])
-                    .copy_from_slice(&source[dst..dst + 1]);
+                (&mut destination[src..src + 1]).copy_from_slice(&source[dst..dst + 1]);
             }
 
             // Use the 2's complement identity (offset + !mask + 1 == offset - mask).
@@ -73,7 +71,6 @@ mod tests {
         assert_eq!(0b1101101, swizzle_y(128 / 4));
         assert_eq!(0b11101101, swizzle_y(256 / 4));
         assert_eq!(0b111101101, swizzle_y(512 / 4));
-
     }
 
     #[test]
@@ -108,11 +105,12 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn deswizzle_bc7_128_128() {
         let input: Vec<u128> = read_blocks(include_bytes!("../swizzle_data/128_bc7_linear.bin"));
-        let expected: Vec<u128> = read_blocks(include_bytes!("../swizzle_data/128_bc7_linear_deswizzle.bin"));
+        let expected: Vec<u128> = read_blocks(include_bytes!(
+            "../swizzle_data/128_bc7_linear_deswizzle.bin"
+        ));
         let mut actual = vec![0u128; 128 * 128 / 16];
 
         let (x_mask, y_mask) = calculate_swizzle_pattern(128, 128);
@@ -126,7 +124,9 @@ mod tests {
     #[test]
     fn deswizzle_bc7_256_256() {
         let input: Vec<u128> = read_blocks(include_bytes!("../swizzle_data/256_bc7_linear.bin"));
-        let expected: Vec<u128> = read_blocks(include_bytes!("../swizzle_data/256_bc7_linear_deswizzle.bin"));
+        let expected: Vec<u128> = read_blocks(include_bytes!(
+            "../swizzle_data/256_bc7_linear_deswizzle.bin"
+        ));
         let mut actual = vec![0u128; 256 * 256 / 16];
 
         let (x_mask, y_mask) = calculate_swizzle_pattern(256, 256);
@@ -140,7 +140,9 @@ mod tests {
     #[test]
     fn deswizzle_bc7_512_512() {
         let input: Vec<u128> = read_blocks(include_bytes!("../swizzle_data/512_bc7_linear.bin"));
-        let expected: Vec<u128> = read_blocks(include_bytes!("../swizzle_data/512_bc7_linear_deswizzle.bin"));
+        let expected: Vec<u128> = read_blocks(include_bytes!(
+            "../swizzle_data/512_bc7_linear_deswizzle.bin"
+        ));
         let mut actual = vec![0u128; 512 * 512 / 16];
 
         let (x_mask, y_mask) = calculate_swizzle_pattern(512, 512);

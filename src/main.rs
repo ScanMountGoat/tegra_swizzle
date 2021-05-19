@@ -1,5 +1,5 @@
 use clap::{App, AppSettings, Arg, SubCommand};
-use nutexb_swizzle::{ImageFormat, deswizzle_bc3_bc7, swizzle_bc3_bc7};
+use nutexb_swizzle::{deswizzle_bc3_bc7, swizzle_bc3_bc7, ImageFormat};
 use std::path::Path;
 
 fn main() {
