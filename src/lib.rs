@@ -18,7 +18,7 @@ pub fn swizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, height
     let input_data = read_blocks::<_, u128>(input);
 
     // Swizzling is currently being done on blocks or tiles rather than by byte addresses.
-    let (x_mask, y_mask) = swizzle::calculate_swizzle_pattern(width as u32, height as u32);
+    let (x_mask, y_mask) = swizzle::calculate_swizzle_pattern_bc7(width as u32, height as u32);
 
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
@@ -45,7 +45,7 @@ pub fn deswizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, heig
     let input_data = read_blocks::<_, u128>(input);
 
     // Swizzling is currently being done on blocks or tiles rather than by byte addresses.
-    let (x_mask, y_mask) = swizzle::calculate_swizzle_pattern(width as u32, height as u32);
+    let (x_mask, y_mask) = swizzle::calculate_swizzle_pattern_bc7(width as u32, height as u32);
 
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
@@ -271,6 +271,8 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
             print_swizzle_patterns(&mip_lut, mip_width, mip_height);
             println!("Start Index: {:?}", mip_lut.iter().min().unwrap());
             println!("End Index: {:?}", mip_lut.iter().max().unwrap());
+            println!("");
+
             mip_width /= 2;
             mip_height /= 2;
         }
