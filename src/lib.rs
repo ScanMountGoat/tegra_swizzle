@@ -4,6 +4,8 @@ use std::{
     path::Path,
 };
 
+use crate::swizzle::{swizzle_x_bc1, swizzle_x_bc7, swizzle_y_bc1, swizzle_y_bc7};
+
 mod nutexb;
 mod swizzle;
 
@@ -14,25 +16,34 @@ pub enum ImageFormat {
     Bc7,
 }
 
-pub fn swizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, height: usize) {
+pub fn swizzle<P: AsRef<Path>>(
+    input: P,
+    output: P,
+    width: usize,
+    height: usize,
+    format: &ImageFormat,
+) {
     let input_data = read_blocks::<_, u128>(input);
 
     // Swizzling is currently being done on blocks or tiles rather than by byte addresses.
-    let (x_mask, y_mask) = swizzle::calculate_swizzle_pattern_bc7(width as u32, height as u32);
-
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
     let mut output_data = vec![0u128; width_in_blocks * height_in_blocks];
-    swizzle::swizzle_experimental(
-        x_mask as i32,
-        y_mask as i32,
-        width_in_blocks,
-        height_in_blocks,
-        &input_data,
-        &mut output_data[..],
-        false,
-    );
+    // TODO: Support other formats.
+    match format {
+        ImageFormat::Rgba => {}
+        ImageFormat::Bc1 => {}
+        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
+            swizzle_x_bc7,
+            swizzle_y_bc7,
+            width_in_blocks,
+            height_in_blocks,
+            &input_data,
+            &mut output_data[..],
+            false,
+        ),
+    }
 
     let mut writer = std::fs::File::create(output).unwrap();
     for value in output_data {
@@ -41,25 +52,42 @@ pub fn swizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, height
 }
 
 // TODO: Avoid repetitive code.
-pub fn deswizzle_bc3_bc7<P: AsRef<Path>>(input: P, output: P, width: usize, height: usize) {
+pub fn deswizzle<P: AsRef<Path>>(
+    input: P,
+    output: P,
+    width: usize,
+    height: usize,
+    format: &ImageFormat,
+) {
     let input_data = read_blocks::<_, u128>(input);
 
     // Swizzling is currently being done on blocks or tiles rather than by byte addresses.
-    let (x_mask, y_mask) = swizzle::calculate_swizzle_pattern_bc7(width as u32, height as u32);
-
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
     let mut output_data = vec![0u128; width_in_blocks * height_in_blocks];
-    swizzle::swizzle_experimental(
-        x_mask as i32,
-        y_mask as i32,
-        width_in_blocks,
-        height_in_blocks,
-        &input_data,
-        &mut output_data[..],
-        true,
-    );
+    // TODO: Support other formats.
+    match format {
+        ImageFormat::Rgba => {}
+        ImageFormat::Bc1 => swizzle::swizzle_experimental(
+            swizzle_x_bc1,
+            swizzle_y_bc1,
+            width_in_blocks,
+            height_in_blocks,
+            &input_data,
+            &mut output_data[..],
+            true,
+        ),
+        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
+            swizzle_x_bc7,
+            swizzle_y_bc7,
+            width_in_blocks,
+            height_in_blocks,
+            &input_data,
+            &mut output_data[..],
+            true,
+        ),
+    }
 
     let mut writer = std::fs::File::create(output).unwrap();
     for value in output_data {

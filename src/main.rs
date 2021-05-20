@@ -1,5 +1,5 @@
 use clap::{App, AppSettings, Arg, SubCommand};
-use nutexb_swizzle::{deswizzle_bc3_bc7, swizzle_bc3_bc7, ImageFormat};
+use nutexb_swizzle::{deswizzle, swizzle, ImageFormat};
 use std::path::Path;
 
 fn main() {
@@ -186,7 +186,7 @@ fn main() {
                     width,
                     height,
                     width * height,
-                    &format
+                    &format,
                 ),
                 ImageFormat::Bc1 => nutexb_swizzle::guess_swizzle_patterns::<u64, _>(
                     swizzled_file,
@@ -194,7 +194,7 @@ fn main() {
                     width,
                     height,
                     deswizzled_block_count,
-                    &format
+                    &format,
                 ),
                 ImageFormat::Bc3 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
                     swizzled_file,
@@ -202,7 +202,7 @@ fn main() {
                     width,
                     height,
                     deswizzled_block_count,
-                    &format
+                    &format,
                 ),
                 ImageFormat::Bc7 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
                     swizzled_file,
@@ -210,7 +210,7 @@ fn main() {
                     width,
                     height,
                     deswizzled_block_count,
-                    &format
+                    &format,
                 ),
             }
         }
@@ -219,32 +219,20 @@ fn main() {
             let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
             let input = sub_m.value_of("input").unwrap();
             let output = sub_m.value_of("output").unwrap();
-            let format =
-                nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+            let format_text = sub_m.value_of("format").unwrap();
+            let format = nutexb_swizzle::try_get_image_format(format_text).unwrap();
 
-            // TODO: swizzle the input
-            match format {
-                ImageFormat::Rgba => (),
-                ImageFormat::Bc1 => (),
-                ImageFormat::Bc3 => swizzle_bc3_bc7(input, output, width, height),
-                ImageFormat::Bc7 => swizzle_bc3_bc7(input, output, width, height),
-            }
+            swizzle(input, output, width, height, &format);
         }
         ("deswizzle", Some(sub_m)) => {
             let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
             let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
             let input = sub_m.value_of("input").unwrap();
             let output = sub_m.value_of("output").unwrap();
-            let format =
-                nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+            let format_text = sub_m.value_of("format").unwrap();
+            let format = nutexb_swizzle::try_get_image_format(format_text).unwrap();
 
-            // TODO: deswizzle the input
-            match format {
-                ImageFormat::Rgba => (),
-                ImageFormat::Bc1 => (),
-                ImageFormat::Bc3 => deswizzle_bc3_bc7(input, output, width, height),
-                ImageFormat::Bc7 => deswizzle_bc3_bc7(input, output, width, height),
-            }
+            deswizzle(input, output, width, height, &format);
         }
         _ => (),
     }

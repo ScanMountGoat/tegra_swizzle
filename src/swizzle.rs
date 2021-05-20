@@ -1,6 +1,6 @@
-pub fn swizzle_experimental<T: Copy>(
-    x_mask: i32,
-    y_mask: i32,
+pub fn swizzle_experimental<T: Copy, F: Fn(u32, u32) -> u32, G: Fn(u32, u32) -> u32>(
+    swizzle_x: F,
+    swizzle_y: G,
     width: usize,
     height: usize,
     source: &[T],
@@ -13,7 +13,12 @@ pub fn swizzle_experimental<T: Copy>(
     let mut offset_x = 0i32;
     let mut offset_y = 0i32;
 
+    // TODO: Is the cast to i32 always safe?
+    let x_mask = swizzle_x(width as u32, height as u32) as i32;
+    let y_mask = swizzle_y(width as u32, height as u32) as i32;
+
     let mut dst = 0;
+    // TODO: This works for 3d textures as well by iterating over depth in the outermost loop.
     for _ in 0..height {
         for _ in 0..width {
             // The bit patterns don't overlap, so just sum the offsets.
@@ -36,13 +41,7 @@ pub fn swizzle_experimental<T: Copy>(
     }
 }
 
-pub fn calculate_swizzle_pattern_bc7(width: u32, height: u32) -> (u32, u32) {
-    let x_pattern = swizzle_x_bc7(width / 4, height / 4);
-    let y_pattern = swizzle_y_bc7(height / 4);
-    (x_pattern, y_pattern)
-}
-
-fn swizzle_x_bc7(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+pub fn swizzle_x_bc7(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
     if width_in_blocks <= 2 {
         return 0b1;
     }
@@ -53,13 +52,31 @@ fn swizzle_x_bc7(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
         | ((x & (!0 << 2)) << (32 - height_in_blocks.leading_zeros() - 1))
 }
 
-fn swizzle_y_bc7(height_in_blocks: u32) -> u32 {
+pub fn swizzle_y_bc7(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
     if height_in_blocks <= 2 {
         return 0b10;
     }
 
     let y = !0 >> (height_in_blocks.leading_zeros() + 1);
     (y & 0x1) | ((y & 0x6) << 1) | ((y & (!0 << 3)) << 2)
+}
+
+pub fn swizzle_x_bc1(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    let x = !0 >> (width_in_blocks.leading_zeros() + 1);
+    ((x & 0x1))
+        | ((x & 0x2) << 1)
+        | ((x & 0x4) << 3)
+        | ((x & (!0 << 3)) << (32 - height_in_blocks.leading_zeros() - 1))
+}
+
+pub fn swizzle_y_bc1(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    if height_in_blocks <= 2 {
+        return 0b100;
+    }
+
+    // TODO: ???
+    let y = !0 >> (height_in_blocks.leading_zeros() + 1);
+    y
 }
 
 #[cfg(test)]
@@ -96,62 +113,43 @@ mod tests {
     fn swizzle_y_bc7_power2() {
         // TODO: Investigate sizes smaller than 16x16.
 
-        // This takes the height in blocks as input.
         let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
-        test_swizzle(0b10, swizzle_y_bc7(8 / 4));
-        test_swizzle(0b101, swizzle_y_bc7(16 / 4));
-        test_swizzle(0b1101, swizzle_y_bc7(32 / 4));
-        test_swizzle(0b101101, swizzle_y_bc7(64 / 4));
-        test_swizzle(0b1101101, swizzle_y_bc7(128 / 4));
-        test_swizzle(0b11101101, swizzle_y_bc7(256 / 4));
-        test_swizzle(0b111101101, swizzle_y_bc7(512 / 4));
+        test_swizzle(0b10, swizzle_y_bc7(8 / 4, 8 / 4));
+        test_swizzle(0b101, swizzle_y_bc7(16 / 4, 16 / 4));
+        test_swizzle(0b1101, swizzle_y_bc7(32 / 4, 32 / 4));
+        test_swizzle(0b101101, swizzle_y_bc7(64 / 4, 64 / 4));
+        test_swizzle(0b1101101, swizzle_y_bc7(128 / 4, 128 / 4));
+        test_swizzle(0b11101101, swizzle_y_bc7(256 / 4, 256 / 4));
+        test_swizzle(0b111101101, swizzle_y_bc7(512 / 4, 512 / 4));
     }
 
     #[test]
-    fn bit_pattern_bc7_8_8() {
-        assert_eq!((0b1, 0b10), calculate_swizzle_pattern_bc7(8, 8));
+    fn swizzle_x_bc1_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
+
+        // This takes the width/height in blocks as input.
+        let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
+        test_swizzle(0b1, swizzle_x_bc1(8 / 4, 8 / 4));
+        test_swizzle(0b101, swizzle_x_bc1(16 / 4, 16 / 4));
+        test_swizzle(0b100101, swizzle_x_bc1(32 / 4, 32 / 4));
+        test_swizzle(0b10100101, swizzle_x_bc1(64 / 4, 64 / 4));
+        test_swizzle(0b1100100101, swizzle_x_bc1(128 / 4, 128 / 4));
+        test_swizzle(0b111000100101, swizzle_x_bc1(256 / 4, 256 / 4));
+        test_swizzle(0b11110000100101, swizzle_x_bc1(512 / 4, 512 / 4));
     }
 
     #[test]
-    fn bit_pattern_bc7_16_16() {
-        assert_eq!((0b10010, 0b101), calculate_swizzle_pattern_bc7(16, 16));
-    }
+    fn swizzle_y_bc1_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
 
-    #[test]
-    fn bit_pattern_bc7_32_32() {
-        assert_eq!((0b110010, 0b1101), calculate_swizzle_pattern_bc7(32, 32));
-    }
-
-    #[test]
-    fn bit_pattern_bc7_64_64() {
-        assert_eq!(
-            (0b00000011010010, 0b00000000101101),
-            calculate_swizzle_pattern_bc7(64, 64)
-        );
-    }
-
-    #[test]
-    fn bit_pattern_bc7_128_128() {
-        assert_eq!(
-            (0b00001110010010, 0b00000001101101),
-            calculate_swizzle_pattern_bc7(128, 128)
-        );
-    }
-
-    #[test]
-    fn bit_pattern_bc7_256_256() {
-        assert_eq!(
-            (0b00111100010010, 0b00000011101101),
-            calculate_swizzle_pattern_bc7(256, 256)
-        );
-    }
-
-    #[test]
-    fn bit_pattern_bc7_512_512() {
-        assert_eq!(
-            (0b11111000010010, 0b00000111101101),
-            calculate_swizzle_pattern_bc7(512, 512)
-        );
+        let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
+        test_swizzle(0b100, swizzle_y_bc1(8 / 4, 8 / 4));
+        test_swizzle(0b100010, swizzle_y_bc1(16 / 4, 16 / 4));
+        test_swizzle(0b1001010, swizzle_y_bc1(32 / 4, 32 / 4));
+        test_swizzle(0b100011010, swizzle_y_bc1(64 / 4, 64 / 4));
+        test_swizzle(0b11011010, swizzle_y_bc1(128 / 4, 128 / 4));
+        test_swizzle(0b1000011011010, swizzle_y_bc1(256 / 4, 256 / 4));
+        test_swizzle(0b100000111011010, swizzle_y_bc1(512 / 4, 512 / 4));
     }
 
     #[test]
@@ -162,10 +160,7 @@ mod tests {
         ));
         let mut actual = vec![0u128; 128 * 128 / 16];
 
-        let (x_mask, y_mask) = calculate_swizzle_pattern_bc7(128, 128);
-        let x_mask = x_mask as i32;
-        let y_mask = y_mask as i32;
-        swizzle_experimental(x_mask, y_mask, 128 / 4, 128 / 4, &input, &mut actual, true);
+        swizzle_experimental(swizzle_x_bc7, swizzle_y_bc7, 128 / 4, 128 / 4, &input, &mut actual, true);
 
         assert_eq!(expected, actual);
     }
@@ -178,10 +173,7 @@ mod tests {
         ));
         let mut actual = vec![0u128; 256 * 256 / 16];
 
-        let (x_mask, y_mask) = calculate_swizzle_pattern_bc7(256, 256);
-        let x_mask = x_mask as i32;
-        let y_mask = y_mask as i32;
-        swizzle_experimental(x_mask, y_mask, 256 / 4, 256 / 4, &input, &mut actual, true);
+        swizzle_experimental(swizzle_x_bc7, swizzle_y_bc7, 256 / 4, 256 / 4, &input, &mut actual, true);
 
         assert_eq!(expected, actual);
     }
@@ -194,10 +186,7 @@ mod tests {
         ));
         let mut actual = vec![0u128; 512 * 512 / 16];
 
-        let (x_mask, y_mask) = calculate_swizzle_pattern_bc7(512, 512);
-        let x_mask = x_mask as i32;
-        let y_mask = y_mask as i32;
-        swizzle_experimental(x_mask, y_mask, 512 / 4, 512 / 4, &input, &mut actual, true);
+        swizzle_experimental(swizzle_x_bc7, swizzle_y_bc7, 512 / 4, 512 / 4, &input, &mut actual, true);
 
         assert_eq!(expected, actual);
     }
