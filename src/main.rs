@@ -186,6 +186,7 @@ fn main() {
                     width,
                     height,
                     width * height,
+                    &format
                 ),
                 ImageFormat::Bc1 => nutexb_swizzle::guess_swizzle_patterns::<u64, _>(
                     swizzled_file,
@@ -193,6 +194,7 @@ fn main() {
                     width,
                     height,
                     deswizzled_block_count,
+                    &format
                 ),
                 ImageFormat::Bc3 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
                     swizzled_file,
@@ -200,6 +202,7 @@ fn main() {
                     width,
                     height,
                     deswizzled_block_count,
+                    &format
                 ),
                 ImageFormat::Bc7 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
                     swizzled_file,
@@ -207,6 +210,7 @@ fn main() {
                     width,
                     height,
                     deswizzled_block_count,
+                    &format
                 ),
             }
         }

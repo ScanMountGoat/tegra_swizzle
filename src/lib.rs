@@ -203,15 +203,19 @@ pub fn write_bc1_lut<W: Write>(writer: &mut W, block_count: usize) {
     }
 }
 
-fn print_swizzle_patterns(deswizzle_lut: &[i64], width: usize, height: usize) {
+fn print_swizzle_patterns(
+    deswizzle_lut: &[i64],
+    width: usize,
+    height: usize,
+    tile_dimension: usize,
+) {
     if width == 0 || height == 0 || deswizzle_lut.is_empty() {
         return;
     }
 
     println!("width: {:?}, height: {:?}", width, height);
-    let tile_size = 4;
-    let width_in_tiles = width / tile_size;
-    let height_in_tiles = height / tile_size;
+    let width_in_tiles = width / tile_dimension;
+    let height_in_tiles = height / tile_dimension;
 
     let x_pattern_index = if width_in_tiles > 1 {
         width_in_tiles - 1
@@ -224,9 +228,8 @@ fn print_swizzle_patterns(deswizzle_lut: &[i64], width: usize, height: usize) {
         0
     };
 
-    // Left pad to 16 to align the output for dimensions up to (65536, 65536).
-    println!("x: {:016b}", deswizzle_lut[x_pattern_index]);
-    println!("y: {:016b}", deswizzle_lut[y_pattern_index]);
+    println!("x: {:032b}", deswizzle_lut[x_pattern_index]);
+    println!("y: {:032b}", deswizzle_lut[y_pattern_index]);
 }
 
 pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<Path>>(
@@ -235,6 +238,7 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
     width: usize,
     height: usize,
     deswizzled_block_count: usize,
+    format: &ImageFormat,
 ) {
     let swizzled_mipmaps = match std::path::Path::new(swizzled_file.as_ref())
         .extension()
@@ -267,10 +271,23 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
                 break;
             }
 
+            // Calculate the start and end of the mipmap based on block indices.
             let mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
-            print_swizzle_patterns(&mip_lut, mip_width, mip_height);
-            println!("Start Index: {:?}", mip_lut.iter().min().unwrap());
-            println!("End Index: {:?}", mip_lut.iter().max().unwrap());
+            let start_index = mip_lut.iter().min().unwrap();
+            let end_index = mip_lut.iter().max().unwrap();
+            println!("Start Index: {:?}", start_index);
+            println!("End Index: {:?}", end_index);
+
+            // For the swizzle patterns, assume the swizzling starts from the mipmap offset.
+            let mut mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
+            for val in mip_lut.iter_mut() {
+                *val -= start_index;
+            }
+
+            match format {
+                ImageFormat::Rgba => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
+                _ => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 4),
+            }
             println!("");
 
             mip_width /= 2;
@@ -288,7 +305,10 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
                 break;
             }
 
-            print_swizzle_patterns(&mip_lut, mip_width, mip_height);
+            match format {
+                ImageFormat::Rgba => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
+                _ => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 4),
+            }
             mip_width /= 2;
             mip_height /= 2;
         }

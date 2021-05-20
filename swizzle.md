@@ -14,9 +14,11 @@ Swizzle patterns to find the corresponding block index when swizzling or deswizz
 Each 4x4 tile is represented as a single 16 byte block. The starting address of each block requires 
 padding the address on the right with 4 bits since blocks have 16 bytes.  
 
+*TODO: Investigate sizes smaller than 16x16*
+
 | Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
 | --- | --- | --- | --- | --- | --- |
-| 8   | 8   | 2   | 2   | 00000000000001 | 00000000000010 |
+| 8   | 8   | 2   | 2   | 00000000100010 | 00000000100001 |
 | 16  | 16  | 4   | 4   | 00000000010010 | 00000000000101 |
 | 32  | 32  | 8   | 8   | 00000000110010 | 00000000001101 |
 | 64  | 64  | 16  | 16  | 00000011010010 | 00000000101101 |
@@ -29,6 +31,14 @@ Swizzle patterns to find the corresponding block index when swizzling or deswizz
 Each 4x4 tile is represented as a single 8 byte block. The starting address of each block requires 
 padding the address on the right with 3 bits since blocks have 16 bytes.  
 
+*TODO: Investigate sizes smaller than 16x16*
+
 | Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
 | --- | --- | --- | --- | --- | --- |
-| 128 | 128 | 32 | 32 | 001100100101 | 000011011010 |
+| 8   | 8   | 2   | 2   | 00000000000001 | 000000000000100 |
+| 16  | 16  | 4   | 4   | 00000000000101 | 000000000100010 |
+| 32  | 32  | 8   | 8   | 00000010100101 | 000000001001010 |
+| 64  | 64  | 16  | 16  | 00000010100101 | 000000100011010 |
+| 128 | 128 | 32  | 32  | 00001100100101 | 000000011011010 |
+| 256 | 256 | 64  | 64  | 00111000100101 | 001000011011010 |
+| 512 | 512 | 128 | 128 | 11110000100101 | 100000111011010 |

@@ -79,6 +79,8 @@ mod tests {
 
     #[test]
     fn swizzle_x_bc7_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
+
         // This takes the width/height in blocks as input.
         let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
         test_swizzle(0b1, swizzle_x_bc7(8 / 4, 8 / 4));
@@ -92,6 +94,8 @@ mod tests {
 
     #[test]
     fn swizzle_y_bc7_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
+
         // This takes the height in blocks as input.
         let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
         test_swizzle(0b10, swizzle_y_bc7(8 / 4));
