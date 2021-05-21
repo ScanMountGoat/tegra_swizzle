@@ -23,17 +23,32 @@ pub fn swizzle<P: AsRef<Path>>(
     height: usize,
     format: &ImageFormat,
 ) {
-    let input_data = read_blocks::<_, u128>(input);
+    let input_data = std::fs::read(input).unwrap();
 
-    // Swizzling is currently being done on blocks or tiles rather than by byte addresses.
+    // TODO: This isn't correct for RGBA.
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
-    let mut output_data = vec![0u128; width_in_blocks * height_in_blocks];
+    let tile_size = match format {
+        ImageFormat::Rgba => 4,
+        ImageFormat::Bc1 => 8,
+        ImageFormat::Bc3 | ImageFormat::Bc7=> 16
+    };
+
+    let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
     // TODO: Support other formats.
     match format {
         ImageFormat::Rgba => {}
-        ImageFormat::Bc1 => {}
+        ImageFormat::Bc1 => swizzle::swizzle_experimental(
+            swizzle_x_bc1,
+            swizzle_y_bc1,
+            width_in_blocks,
+            height_in_blocks,
+            &input_data,
+            &mut output_data[..],
+            false,
+            8,
+        ),
         ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
             swizzle_x_bc7,
             swizzle_y_bc7,
@@ -42,6 +57,7 @@ pub fn swizzle<P: AsRef<Path>>(
             &input_data,
             &mut output_data[..],
             false,
+            16,
         ),
     }
 
@@ -59,13 +75,19 @@ pub fn deswizzle<P: AsRef<Path>>(
     height: usize,
     format: &ImageFormat,
 ) {
-    let input_data = read_blocks::<_, u128>(input);
+    let input_data = std::fs::read(input).unwrap();
 
-    // Swizzling is currently being done on blocks or tiles rather than by byte addresses.
+    // TODO: This isn't correct for RGBA.
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
-    let mut output_data = vec![0u128; width_in_blocks * height_in_blocks];
+    let tile_size = match format {
+        ImageFormat::Rgba => 4,
+        ImageFormat::Bc1 => 8,
+        ImageFormat::Bc3 | ImageFormat::Bc7=> 16
+    };
+
+    let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
     // TODO: Support other formats.
     match format {
         ImageFormat::Rgba => {}
@@ -77,6 +99,7 @@ pub fn deswizzle<P: AsRef<Path>>(
             &input_data,
             &mut output_data[..],
             true,
+            8,
         ),
         ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
             swizzle_x_bc7,
@@ -86,6 +109,7 @@ pub fn deswizzle<P: AsRef<Path>>(
             &input_data,
             &mut output_data[..],
             true,
+            16,
         ),
     }
 
