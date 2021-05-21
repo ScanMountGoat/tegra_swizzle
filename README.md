@@ -1,4 +1,6 @@
 # nutexb_swizzle
+<img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/swizzle3d.png" height="auto" width="100%">
+
 Documentation and tools for Tegra X1 swizzling used for nutexb texture files for Smash Ultimate. See the [swizzle](swizzle.md) page for documentation. The swizzle code and bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/). 
 
 The program can automatically generate lookup tables for swizzling and deswizzling texture data based on a pair of swizzled and unswizzled image data files. For the power of two case, the lookup table can be efficiently expressed as bit patterns for the x, y, and z components of the pixel address. 
