@@ -16,15 +16,7 @@ pub enum ImageFormat {
     Bc7,
 }
 
-pub fn swizzle<P: AsRef<Path>>(
-    input: P,
-    output: P,
-    width: usize,
-    height: usize,
-    format: &ImageFormat,
-) {
-    let input_data = std::fs::read(input).unwrap();
-
+pub fn swizzle_data(input_data: &[u8], width: usize, height: usize, format: &ImageFormat) -> Vec<u8> {
     // TODO: This isn't correct for RGBA.
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
@@ -32,7 +24,7 @@ pub fn swizzle<P: AsRef<Path>>(
     let tile_size = match format {
         ImageFormat::Rgba => 4,
         ImageFormat::Bc1 => 8,
-        ImageFormat::Bc3 | ImageFormat::Bc7=> 16
+        ImageFormat::Bc3 | ImageFormat::Bc7 => 16,
     };
 
     let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
@@ -61,10 +53,63 @@ pub fn swizzle<P: AsRef<Path>>(
         ),
     }
 
+    output_data
+}
+
+pub fn swizzle<P: AsRef<Path>>(
+    input: P,
+    output: P,
+    width: usize,
+    height: usize,
+    format: &ImageFormat,
+) {
+    let input_data = std::fs::read(input).unwrap();
+    let output_data = swizzle_data(&input_data, width, height, format);
+
     let mut writer = std::fs::File::create(output).unwrap();
     for value in output_data {
         writer.write_all(&value.to_le_bytes()).unwrap();
     }
+}
+
+pub fn deswizzle_data(input_data: &[u8], width: usize, height: usize, format: &ImageFormat) -> Vec<u8> {
+    // TODO: This isn't correct for RGBA.
+    let width_in_blocks = width / 4;
+    let height_in_blocks = height / 4;
+
+    let tile_size = match format {
+        ImageFormat::Rgba => 4,
+        ImageFormat::Bc1 => 8,
+        ImageFormat::Bc3 | ImageFormat::Bc7 => 16,
+    };
+
+    let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
+    // TODO: Support other formats.
+    match format {
+        ImageFormat::Rgba => {}
+        ImageFormat::Bc1 => swizzle::swizzle_experimental(
+            swizzle_x_bc1,
+            swizzle_y_bc1,
+            width_in_blocks,
+            height_in_blocks,
+            &input_data,
+            &mut output_data[..],
+            true,
+            8,
+        ),
+        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
+            swizzle_x_bc7,
+            swizzle_y_bc7,
+            width_in_blocks,
+            height_in_blocks,
+            &input_data,
+            &mut output_data[..],
+            true,
+            16,
+        ),
+    }
+
+    output_data
 }
 
 // TODO: Avoid repetitive code.
@@ -76,42 +121,7 @@ pub fn deswizzle<P: AsRef<Path>>(
     format: &ImageFormat,
 ) {
     let input_data = std::fs::read(input).unwrap();
-
-    // TODO: This isn't correct for RGBA.
-    let width_in_blocks = width / 4;
-    let height_in_blocks = height / 4;
-
-    let tile_size = match format {
-        ImageFormat::Rgba => 4,
-        ImageFormat::Bc1 => 8,
-        ImageFormat::Bc3 | ImageFormat::Bc7=> 16
-    };
-
-    let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
-    // TODO: Support other formats.
-    match format {
-        ImageFormat::Rgba => {}
-        ImageFormat::Bc1 => swizzle::swizzle_experimental(
-            swizzle_x_bc1,
-            swizzle_y_bc1,
-            width_in_blocks,
-            height_in_blocks,
-            &input_data,
-            &mut output_data[..],
-            true,
-            8,
-        ),
-        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
-            width_in_blocks,
-            height_in_blocks,
-            &input_data,
-            &mut output_data[..],
-            true,
-            16,
-        ),
-    }
+    let output_data = deswizzle_data(&input_data, width, height, format);
 
     let mut writer = std::fs::File::create(output).unwrap();
     for value in output_data {

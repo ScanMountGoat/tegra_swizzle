@@ -51,9 +51,10 @@ pub fn swizzle_x_bc7(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
     }
 
     let x = !0 >> (width_in_blocks.leading_zeros() + 1);
+    let max_shift = std::cmp::min(32 - height_in_blocks.leading_zeros() - 1, 7);
     let result = ((x & 0x1) << 1)
         | ((x & 0x2) << 3)
-        | ((x & (!0 << 2)) << (32 - height_in_blocks.leading_zeros() - 1));
+        | ((x & (!0 << 2)) << max_shift);
     result << 4
 }
 
@@ -63,8 +64,9 @@ pub fn swizzle_y_bc7(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
         return 0b10 << 4;
     }
 
+    // TODO: This only works up to 256x256 blocks.
     let y = !0 >> (height_in_blocks.leading_zeros() + 1);
-    let result = (y & 0x1) | ((y & 0x6) << 1) | ((y & (!0 << 3)) << 2);
+    let result = (y & 0x1) | ((y & 0x6) << 1) | ((y & 0x78) << 2) | ((y & 0x80) << 8);
     result << 4
 }
 
@@ -103,6 +105,7 @@ mod tests {
         test_swizzle(0b11100100100000, swizzle_x_bc7(128 / 4, 128 / 4));
         test_swizzle(0b1111000100100000, swizzle_x_bc7(256 / 4, 256 / 4));
         test_swizzle(0b111110000100100000, swizzle_x_bc7(512 / 4, 512 / 4));
+        test_swizzle(0b1111110000100100000, swizzle_x_bc7(1024 / 4, 1024 / 4));
     }
 
     #[test]
@@ -117,6 +120,7 @@ mod tests {
         test_swizzle(0b11011010000, swizzle_y_bc7(128 / 4, 128 / 4));
         test_swizzle(0b111011010000, swizzle_y_bc7(256 / 4, 256 / 4));
         test_swizzle(0b1111011010000, swizzle_y_bc7(512 / 4, 512 / 4));
+        test_swizzle(0b10000001111011010000, swizzle_y_bc7(1024 / 4, 1024 / 4));
     }
 
     #[test]
@@ -219,6 +223,26 @@ mod tests {
             swizzle_y_bc7,
             512 / 4,
             512 / 4,
+            input,
+            &mut actual,
+            true,
+            16,
+        );
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc7_1024_1024() {
+        let input = include_bytes!("../swizzle_data/1024_bc7_linear.bin");
+        let expected = include_bytes!("../swizzle_data/1024_bc7_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 1024 * 1024];
+
+        swizzle_experimental(
+            swizzle_x_bc7,
+            swizzle_y_bc7,
+            1024 / 4,
+            1024 / 4,
             input,
             &mut actual,
             true,
