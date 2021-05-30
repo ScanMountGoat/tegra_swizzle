@@ -11,7 +11,7 @@ fn main() {
         .help("The image format")
         .required(true)
         .takes_value(true)
-        .possible_values(&["bc1", "bc3", "bc7", "rgba"])
+        .possible_values(&["bc1", "bc3", "bc7", "rgba8", "rgbaf32"])
         .case_insensitive(true);
 
     let block_count_arg = Arg::with_name("blockcount")
@@ -137,7 +137,7 @@ fn main() {
             let block_count: usize = match sub_m.value_of("blockcount") {
                 Some(v) => v.parse().unwrap(),
                 None => match format {
-                    ImageFormat::Rgba => width * height * 4,
+                    ImageFormat::Rgba8 => width * height * 4,
                     _ => pixel_count / pixels_per_tile,
                 },
             };
@@ -161,7 +161,8 @@ fn main() {
                 );
             } else {
                 match format {
-                    ImageFormat::Rgba => nutexb_swizzle::write_rgba_lut(&mut writer, block_count),
+                    ImageFormat::Rgba8 => nutexb_swizzle::write_rgba_lut(&mut writer, block_count),
+                    ImageFormat::RgbaF32 => nutexb_swizzle::write_rgba_f32_lut(&mut writer, block_count),
                     ImageFormat::Bc1 => nutexb_swizzle::write_bc1_lut(&mut writer, block_count),
                     ImageFormat::Bc3 => nutexb_swizzle::write_bc3_lut(&mut writer, block_count),
                     ImageFormat::Bc7 => nutexb_swizzle::write_bc7_lut(&mut writer, block_count),
@@ -180,7 +181,7 @@ fn main() {
             let deswizzled_block_count = width * height / 16;
 
             match format {
-                ImageFormat::Rgba => nutexb_swizzle::guess_swizzle_patterns::<u32, _>(
+                ImageFormat::Rgba8 => nutexb_swizzle::guess_swizzle_patterns::<u32, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
@@ -196,15 +197,7 @@ fn main() {
                     deswizzled_block_count,
                     &format,
                 ),
-                ImageFormat::Bc3 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
-                    swizzled_file,
-                    deswizzled_file,
-                    width,
-                    height,
-                    deswizzled_block_count,
-                    &format,
-                ),
-                ImageFormat::Bc7 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
+                ImageFormat::Bc3 | ImageFormat::Bc7 | ImageFormat::RgbaF32 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,

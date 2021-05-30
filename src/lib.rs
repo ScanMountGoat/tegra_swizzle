@@ -10,7 +10,8 @@ mod nutexb;
 mod swizzle;
 
 pub enum ImageFormat {
-    Rgba,
+    Rgba8,
+    RgbaF32,
     Bc1,
     Bc3,
     Bc7,
@@ -21,16 +22,13 @@ pub fn swizzle_data(input_data: &[u8], width: usize, height: usize, format: &Ima
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
-    let tile_size = match format {
-        ImageFormat::Rgba => 4,
-        ImageFormat::Bc1 => 8,
-        ImageFormat::Bc3 | ImageFormat::Bc7 => 16,
-    };
+    let tile_size = get_tile_size(format);
 
     let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
     // TODO: Support other formats.
     match format {
-        ImageFormat::Rgba => {}
+        ImageFormat::Rgba8 => {}
+        ImageFormat::RgbaF32 => {}
         ImageFormat::Bc1 => swizzle::swizzle_experimental(
             swizzle_x_bc1,
             swizzle_y_bc1,
@@ -77,16 +75,13 @@ pub fn deswizzle_data(input_data: &[u8], width: usize, height: usize, format: &I
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
-    let tile_size = match format {
-        ImageFormat::Rgba => 4,
-        ImageFormat::Bc1 => 8,
-        ImageFormat::Bc3 | ImageFormat::Bc7 => 16,
-    };
+    let tile_size = get_tile_size(format);
 
     let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
     // TODO: Support other formats.
     match format {
-        ImageFormat::Rgba => {}
+        ImageFormat::Rgba8 => {}
+        ImageFormat::RgbaF32 => {}
         ImageFormat::Bc1 => swizzle::swizzle_experimental(
             swizzle_x_bc1,
             swizzle_y_bc1,
@@ -131,11 +126,21 @@ pub fn deswizzle<P: AsRef<Path>>(
 
 pub fn try_get_image_format(format: &str) -> std::result::Result<ImageFormat, &str> {
     match format {
-        "rgba" => Ok(ImageFormat::Rgba),
+        "rgba8" => Ok(ImageFormat::Rgba8),
+        "rgbaf32" => Ok(ImageFormat::RgbaF32),
         "bc1" => Ok(ImageFormat::Bc1),
         "bc3" => Ok(ImageFormat::Bc3),
         "bc7" => Ok(ImageFormat::Bc7),
         _ => Err("Unsupported format"),
+    }
+}
+
+fn get_tile_size(format: &ImageFormat) -> usize {
+    match format {
+        ImageFormat::Rgba8 => 4,
+        ImageFormat::RgbaF32 => 16,
+        ImageFormat::Bc1 => 8,
+        ImageFormat::Bc3 | ImageFormat::Bc7 => 16,
     }
 }
 
@@ -230,9 +235,18 @@ fn swizzle_blocks<T: Default + Copy + Clone>(linear_blocks: &[T], deswizzle_lut:
     swizzled_blocks
 }
 
+// TODO: Return result?
 pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
     for i in 0..pixel_count as u32 {
         // Use the linear address to create unique pixel values.
+        writer.write_all(&i.to_le_bytes()).unwrap();
+    }
+}
+
+pub fn write_rgba_f32_lut<W: Write>(writer: &mut W, pixel_count: usize) {
+    for i in 0..pixel_count as u128 {
+        // Use the linear address to create unique pixel values.
+        // Write u32 instead of f32 to generate more unique values.
         writer.write_all(&i.to_le_bytes()).unwrap();
     }
 }
@@ -347,7 +361,7 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
             }
 
             match format {
-                ImageFormat::Rgba => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
+                ImageFormat::Rgba8 => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
                 _ => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 4),
             }
             println!("");
@@ -368,7 +382,7 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
             }
 
             match format {
-                ImageFormat::Rgba => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
+                ImageFormat::Rgba8 => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
                 _ => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 4),
             }
             mip_width /= 2;
@@ -391,18 +405,20 @@ pub fn create_nutexb(
     block_count: usize,
 ) {
     let nutexb_format = match format {
-        ImageFormat::Rgba => 0,
-        ImageFormat::Bc1 => 0x90,
-        ImageFormat::Bc3 => 0xa0,
-        ImageFormat::Bc7 => 0xe0,
+        ImageFormat::Rgba8 => 0,
+        ImageFormat::Bc1 => 128,
+        ImageFormat::Bc3 => 160,
+        ImageFormat::Bc7 => 224,
+        ImageFormat::RgbaF32 => 52
     };
 
     let mut buffer = Cursor::new(Vec::new());
     match format {
-        ImageFormat::Rgba => write_rgba_lut(&mut buffer, block_count),
+        ImageFormat::Rgba8 => write_rgba_lut(&mut buffer, block_count),
         ImageFormat::Bc1 => write_bc1_lut(&mut buffer, block_count),
         ImageFormat::Bc3 => write_bc3_lut(&mut buffer, block_count),
         ImageFormat::Bc7 => write_bc7_lut(&mut buffer, block_count),
+        ImageFormat::RgbaF32 => write_rgba_f32_lut(writer, block_count)
     }
 
     nutexb::write_nutexb_from_data(
