@@ -1,3 +1,4 @@
+// Width and height are calculated as width/4 and height/4 for BCN compression. 
 pub fn swizzle_experimental<F: Fn(u32, u32) -> u32, G: Fn(u32, u32) -> u32>(
     swizzle_x: F,
     swizzle_y: G,
@@ -203,6 +204,27 @@ mod tests {
             swizzle_y_bc7,
             128 / 4,
             128 / 4,
+            input,
+            &mut actual,
+            true,
+            16,
+        );
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_rgba_f32_128_128() {
+        let input = include_bytes!("../swizzle_data/128_rgbaf32_linear.bin");
+        let expected = include_bytes!("../swizzle_data/128_rgbaf32_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 128 * 128 * 16];
+
+        // R32G32B32A32_FLOAT has the same swizzle patterns as BC7.
+        swizzle_experimental(
+            swizzle_x_bc7,
+            swizzle_y_bc7,
+            128,
+            128,
             input,
             &mut actual,
             true,

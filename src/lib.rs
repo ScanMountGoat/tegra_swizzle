@@ -244,10 +244,14 @@ pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
 }
 
 pub fn write_rgba_f32_lut<W: Write>(writer: &mut W, pixel_count: usize) {
-    for i in 0..pixel_count as u128 {
+    for i in 0..pixel_count {
         // Use the linear address to create unique pixel values.
-        // Write u32 instead of f32 to generate more unique values.
-        writer.write_all(&i.to_le_bytes()).unwrap();
+        // TODO: This only works up to 16777216.
+        // TODO: Flip sign bit for larger values?
+        writer.write_all(&(i as f32).to_le_bytes()).unwrap();
+        writer.write_all(&0f32.to_le_bytes()).unwrap();
+        writer.write_all(&0f32.to_le_bytes()).unwrap();
+        writer.write_all(&0f32.to_le_bytes()).unwrap();
     }
 }
 
@@ -313,7 +317,6 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
     deswizzled_file: P,
     width: usize,
     height: usize,
-    deswizzled_block_count: usize,
     format: &ImageFormat,
 ) {
     let swizzled_mipmaps = match std::path::Path::new(swizzled_file.as_ref())
@@ -389,11 +392,6 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
             mip_height /= 2;
         }
     }
-
-    // TODO: This probably should have less verbose output on failure.
-    // TODO: Check each mipmap
-    // assert_eq!(deswizzle_blocks(&linear_blocks, &lut)[..deswizzled_block_count], deswizzled_blocks[..deswizzled_block_count]);
-    // assert_eq!(swizzle_blocks(&deswizzled_blocks, &lut)[..deswizzled_block_count], linear_blocks[..deswizzled_block_count]);
 }
 
 pub fn create_nutexb(
@@ -418,7 +416,7 @@ pub fn create_nutexb(
         ImageFormat::Bc1 => write_bc1_lut(&mut buffer, block_count),
         ImageFormat::Bc3 => write_bc3_lut(&mut buffer, block_count),
         ImageFormat::Bc7 => write_bc7_lut(&mut buffer, block_count),
-        ImageFormat::RgbaF32 => write_rgba_f32_lut(writer, block_count)
+        ImageFormat::RgbaF32 => write_rgba_f32_lut(&mut buffer, block_count)
     }
 
     nutexb::write_nutexb_from_data(

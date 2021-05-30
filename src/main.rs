@@ -130,15 +130,13 @@ fn main() {
             let format =
                 nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
 
-            let pixel_count = width * height;
-            let pixels_per_tile = 4 * 4;
-
             // Allow manually overriding the image size.
             let block_count: usize = match sub_m.value_of("blockcount") {
                 Some(v) => v.parse().unwrap(),
                 None => match format {
-                    ImageFormat::Rgba8 => width * height * 4,
-                    _ => pixel_count / pixels_per_tile,
+                    ImageFormat::Rgba8 => width * height,
+                    ImageFormat::RgbaF32 => width * height,
+                    _ => width * height / 16,
                 },
             };
 
@@ -162,7 +160,9 @@ fn main() {
             } else {
                 match format {
                     ImageFormat::Rgba8 => nutexb_swizzle::write_rgba_lut(&mut writer, block_count),
-                    ImageFormat::RgbaF32 => nutexb_swizzle::write_rgba_f32_lut(&mut writer, block_count),
+                    ImageFormat::RgbaF32 => {
+                        nutexb_swizzle::write_rgba_f32_lut(&mut writer, block_count)
+                    }
                     ImageFormat::Bc1 => nutexb_swizzle::write_bc1_lut(&mut writer, block_count),
                     ImageFormat::Bc3 => nutexb_swizzle::write_bc3_lut(&mut writer, block_count),
                     ImageFormat::Bc7 => nutexb_swizzle::write_bc7_lut(&mut writer, block_count),
@@ -177,16 +177,12 @@ fn main() {
             let format =
                 nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
 
-            // The bcn compressed formats all use 4x4 pixel tiles.
-            let deswizzled_block_count = width * height / 16;
-
             match format {
                 ImageFormat::Rgba8 => nutexb_swizzle::guess_swizzle_patterns::<u32, _>(
                     swizzled_file,
                     deswizzled_file,
                     width,
                     height,
-                    width * height,
                     &format,
                 ),
                 ImageFormat::Bc1 => nutexb_swizzle::guess_swizzle_patterns::<u64, _>(
@@ -194,17 +190,17 @@ fn main() {
                     deswizzled_file,
                     width,
                     height,
-                    deswizzled_block_count,
                     &format,
                 ),
-                ImageFormat::Bc3 | ImageFormat::Bc7 | ImageFormat::RgbaF32 => nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
-                    swizzled_file,
-                    deswizzled_file,
-                    width,
-                    height,
-                    deswizzled_block_count,
-                    &format,
-                ),
+                ImageFormat::Bc3 | ImageFormat::Bc7 | ImageFormat::RgbaF32 => {
+                    nutexb_swizzle::guess_swizzle_patterns::<u128, _>(
+                        swizzled_file,
+                        deswizzled_file,
+                        width,
+                        height,
+                        &format,
+                    )
+                }
             }
         }
         ("swizzle", Some(sub_m)) => {

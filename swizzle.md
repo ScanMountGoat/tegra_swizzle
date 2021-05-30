@@ -9,10 +9,14 @@ The starting address of each block requires padding the address on the right wit
 | 64  | 64  | 0000110001001011 | 0000001110110100 |
 | 256 | 256 | 0111100001001011 | 1000011110110100 |
 
-## Compressed BC2, BC3, BC5, BC6, BC7 Block Swizzle Patterns 
+## Compressed BC2, BC3, BC5, BC6, BC7, R32G32B32A32_Float Swizzle Patterns 
 Swizzle patterns to find the corresponding block index when swizzling or deswizzling.  
 Each 4x4 tile is represented as a single 16 byte block. The starting byte address of each block requires 
 padding the address on the right with 4 bits since blocks are 16 bytes.  
+
+R32G32B32A32_Float uses the same swizzle patterns since each pixel also requires 16 bytes. 
+Since this is not a compressed format, use the tile width and tile height in the table instead. 
+For example, a 128x128 pixel R32G32B32A32_Float image will use the patterns for 512, 512, 128, 128 in the table below.
 
 *TODO: Investigate sizes smaller than 16x16*
 
