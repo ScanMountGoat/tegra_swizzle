@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::swizzle::{swizzle_x_bc1, swizzle_x_bc7, swizzle_y_bc1, swizzle_y_bc7};
+use crate::swizzle::{swizzle_x_16, swizzle_x_8, swizzle_y_16, swizzle_y_8};
 
 mod nutexb;
 mod swizzle;
@@ -17,8 +17,12 @@ pub enum ImageFormat {
     Bc7,
 }
 
-pub fn swizzle_data(input_data: &[u8], width: usize, height: usize, format: &ImageFormat) -> Vec<u8> {
-    // TODO: This isn't correct for RGBA.
+pub fn swizzle_data(
+    input_data: &[u8],
+    width: usize,
+    height: usize,
+    format: &ImageFormat,
+) -> Vec<u8> {
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
@@ -28,10 +32,9 @@ pub fn swizzle_data(input_data: &[u8], width: usize, height: usize, format: &Ima
     // TODO: Support other formats.
     match format {
         ImageFormat::Rgba8 => {}
-        ImageFormat::RgbaF32 => {}
         ImageFormat::Bc1 => swizzle::swizzle_experimental(
-            swizzle_x_bc1,
-            swizzle_y_bc1,
+            swizzle_x_8,
+            swizzle_y_8,
             width_in_blocks,
             height_in_blocks,
             &input_data,
@@ -40,8 +43,8 @@ pub fn swizzle_data(input_data: &[u8], width: usize, height: usize, format: &Ima
             8,
         ),
         ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             width_in_blocks,
             height_in_blocks,
             &input_data,
@@ -49,6 +52,16 @@ pub fn swizzle_data(input_data: &[u8], width: usize, height: usize, format: &Ima
             false,
             16,
         ),
+        ImageFormat::RgbaF32 => swizzle::swizzle_experimental(
+            swizzle_x_16,
+            swizzle_y_16,
+            width,
+            height,
+            &input_data,
+            &mut output_data[..],
+            false,
+            16,
+        )
     }
 
     output_data
@@ -70,7 +83,12 @@ pub fn swizzle<P: AsRef<Path>>(
     }
 }
 
-pub fn deswizzle_data(input_data: &[u8], width: usize, height: usize, format: &ImageFormat) -> Vec<u8> {
+pub fn deswizzle_data(
+    input_data: &[u8],
+    width: usize,
+    height: usize,
+    format: &ImageFormat,
+) -> Vec<u8> {
     // TODO: This isn't correct for RGBA.
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
@@ -81,10 +99,9 @@ pub fn deswizzle_data(input_data: &[u8], width: usize, height: usize, format: &I
     // TODO: Support other formats.
     match format {
         ImageFormat::Rgba8 => {}
-        ImageFormat::RgbaF32 => {}
         ImageFormat::Bc1 => swizzle::swizzle_experimental(
-            swizzle_x_bc1,
-            swizzle_y_bc1,
+            swizzle_x_8,
+            swizzle_y_8,
             width_in_blocks,
             height_in_blocks,
             &input_data,
@@ -93,8 +110,8 @@ pub fn deswizzle_data(input_data: &[u8], width: usize, height: usize, format: &I
             8,
         ),
         ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             width_in_blocks,
             height_in_blocks,
             &input_data,
@@ -102,6 +119,16 @@ pub fn deswizzle_data(input_data: &[u8], width: usize, height: usize, format: &I
             true,
             16,
         ),
+        ImageFormat::RgbaF32 => swizzle::swizzle_experimental(
+            swizzle_x_16,
+            swizzle_y_16,
+            width,
+            height,
+            &input_data,
+            &mut output_data[..],
+            true,
+            16,
+        )
     }
 
     output_data
@@ -208,31 +235,6 @@ fn create_mip_deswizzle_lut<T: PartialEq>(linear: &[T], deswizzled: &[T]) -> Vec
     }
 
     mip_lut
-}
-
-fn deswizzle_blocks<T: Default + Copy + Clone>(
-    swizzled_blocks: &[T],
-    deswizzle_lut: &[i64],
-) -> Vec<T> {
-    let mut deswizzled_blocks = vec![T::default(); swizzled_blocks.len()];
-    for (i, linear) in deswizzle_lut.iter().enumerate() {
-        if *linear >= 0 {
-            deswizzled_blocks[i] = swizzled_blocks[*linear as usize];
-        }
-    }
-
-    deswizzled_blocks
-}
-
-fn swizzle_blocks<T: Default + Copy + Clone>(linear_blocks: &[T], deswizzle_lut: &[i64]) -> Vec<T> {
-    let mut swizzled_blocks = vec![T::default(); linear_blocks.len()];
-    for (i, linear) in deswizzle_lut.iter().enumerate() {
-        if *linear >= 0 {
-            swizzled_blocks[*linear as usize] = linear_blocks[i];
-        }
-    }
-
-    swizzled_blocks
 }
 
 // TODO: Return result?
@@ -367,7 +369,7 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
                 ImageFormat::Rgba8 => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
                 _ => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 4),
             }
-            println!("");
+            println!();
 
             mip_width /= 2;
             mip_height /= 2;
@@ -407,7 +409,7 @@ pub fn create_nutexb(
         ImageFormat::Bc1 => 128,
         ImageFormat::Bc3 => 160,
         ImageFormat::Bc7 => 224,
-        ImageFormat::RgbaF32 => 52
+        ImageFormat::RgbaF32 => 52,
     };
 
     let mut buffer = Cursor::new(Vec::new());
@@ -416,7 +418,7 @@ pub fn create_nutexb(
         ImageFormat::Bc1 => write_bc1_lut(&mut buffer, block_count),
         ImageFormat::Bc3 => write_bc3_lut(&mut buffer, block_count),
         ImageFormat::Bc7 => write_bc7_lut(&mut buffer, block_count),
-        ImageFormat::RgbaF32 => write_rgba_f32_lut(&mut buffer, block_count)
+        ImageFormat::RgbaF32 => write_rgba_f32_lut(&mut buffer, block_count),
     }
 
     nutexb::write_nutexb_from_data(

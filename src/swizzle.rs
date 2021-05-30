@@ -1,4 +1,4 @@
-// Width and height are calculated as width/4 and height/4 for BCN compression. 
+// Width and height are calculated as width/4 and height/4 for BCN compression.
 pub fn swizzle_experimental<F: Fn(u32, u32) -> u32, G: Fn(u32, u32) -> u32>(
     swizzle_x: F,
     swizzle_y: G,
@@ -45,8 +45,8 @@ pub fn swizzle_experimental<F: Fn(u32, u32) -> u32, G: Fn(u32, u32) -> u32>(
     }
 }
 
-pub fn swizzle_x_bc7(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
-    // Left shift by 4 bits since tiles are 16 bytes.
+pub fn swizzle_x_16(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    // Left shift by 4 bits since tiles or pixels are 16 bytes.
     if width_in_blocks <= 2 {
         return 0b1 << 4;
     }
@@ -57,19 +57,19 @@ pub fn swizzle_x_bc7(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
     result << 4
 }
 
-pub fn swizzle_y_bc7(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
-    // Left shift by 4 bits since tiles are 16 bytes.
+pub fn swizzle_y_16(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    // Left shift by 4 bits since tiles or pixels are 16 bytes.
     if height_in_blocks <= 2 {
         return 0b10 << 4;
     }
 
-    // TODO: This only works up to 256x256 blocks.
+    // TODO: This only works up to 256x256.
     let y = !0 >> (height_in_blocks.leading_zeros() + 1);
     let result = (y & 0x1) | ((y & 0x6) << 1) | ((y & 0x78) << 2) | ((y & 0x80) << 8);
     result << 4
 }
 
-pub fn swizzle_x_bc1(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+pub fn swizzle_x_8(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
     // Left shift by 3 bits since tiles are 8 bytes.
     let x = !0 >> (width_in_blocks.leading_zeros() + 1);
     let result = (x & 0x1)
@@ -79,9 +79,9 @@ pub fn swizzle_x_bc1(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
     result << 3
 }
 
-pub fn swizzle_y_bc1(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
-    // Left shift by 3 bits since tiles are 8 bytes.
-    // TODO: This only works up to 128x128 blocks.
+pub fn swizzle_y_8(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    // Left shift by 3 bits since tiles or pixels are 8 bytes.
+    // TODO: This only works up to 128x128.
     let y = !0 >> (height_in_blocks.leading_zeros() + 1);
     let result = ((y & 0x1) << 1) | ((y & 0x6) << 2) | ((y & 0x78) << 3);
     result << 3
@@ -92,64 +92,64 @@ mod tests {
     use super::*;
 
     #[test]
-    fn swizzle_x_bc7_power2() {
+    fn swizzle_x_16_power2() {
         // TODO: Investigate sizes smaller than 16x16.
 
         // These are left shifted by 4 since tiles are 16 bytes.
         let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
-        test_swizzle(0b10000, swizzle_x_bc7(8 / 4, 8 / 4));
-        test_swizzle(0b100100000, swizzle_x_bc7(16 / 4, 16 / 4));
-        test_swizzle(0b1100100000, swizzle_x_bc7(32 / 4, 32 / 4));
-        test_swizzle(0b110100100000, swizzle_x_bc7(64 / 4, 64 / 4));
-        test_swizzle(0b11100100100000, swizzle_x_bc7(128 / 4, 128 / 4));
-        test_swizzle(0b1111000100100000, swizzle_x_bc7(256 / 4, 256 / 4));
-        test_swizzle(0b111110000100100000, swizzle_x_bc7(512 / 4, 512 / 4));
-        test_swizzle(0b1111110000100100000, swizzle_x_bc7(1024 / 4, 1024 / 4));
+        test_swizzle(0b10000, swizzle_x_16(8 / 4, 8 / 4));
+        test_swizzle(0b100100000, swizzle_x_16(16 / 4, 16 / 4));
+        test_swizzle(0b1100100000, swizzle_x_16(32 / 4, 32 / 4));
+        test_swizzle(0b110100100000, swizzle_x_16(64 / 4, 64 / 4));
+        test_swizzle(0b11100100100000, swizzle_x_16(128 / 4, 128 / 4));
+        test_swizzle(0b1111000100100000, swizzle_x_16(256 / 4, 256 / 4));
+        test_swizzle(0b111110000100100000, swizzle_x_16(512 / 4, 512 / 4));
+        test_swizzle(0b1111110000100100000, swizzle_x_16(1024 / 4, 1024 / 4));
     }
 
     #[test]
-    fn swizzle_y_bc7_power2() {
+    fn swizzle_y_16_power2() {
         // TODO: Investigate sizes smaller than 16x16.
         // These are left shifted by 4 since tiles are 16 bytes.
         let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
-        test_swizzle(0b100000, swizzle_y_bc7(8 / 4, 8 / 4));
-        test_swizzle(0b1010000, swizzle_y_bc7(16 / 4, 16 / 4));
-        test_swizzle(0b11010000, swizzle_y_bc7(32 / 4, 32 / 4));
-        test_swizzle(0b1011010000, swizzle_y_bc7(64 / 4, 64 / 4));
-        test_swizzle(0b11011010000, swizzle_y_bc7(128 / 4, 128 / 4));
-        test_swizzle(0b111011010000, swizzle_y_bc7(256 / 4, 256 / 4));
-        test_swizzle(0b1111011010000, swizzle_y_bc7(512 / 4, 512 / 4));
-        test_swizzle(0b10000001111011010000, swizzle_y_bc7(1024 / 4, 1024 / 4));
+        test_swizzle(0b100000, swizzle_y_16(8 / 4, 8 / 4));
+        test_swizzle(0b1010000, swizzle_y_16(16 / 4, 16 / 4));
+        test_swizzle(0b11010000, swizzle_y_16(32 / 4, 32 / 4));
+        test_swizzle(0b1011010000, swizzle_y_16(64 / 4, 64 / 4));
+        test_swizzle(0b11011010000, swizzle_y_16(128 / 4, 128 / 4));
+        test_swizzle(0b111011010000, swizzle_y_16(256 / 4, 256 / 4));
+        test_swizzle(0b1111011010000, swizzle_y_16(512 / 4, 512 / 4));
+        test_swizzle(0b10000001111011010000, swizzle_y_16(1024 / 4, 1024 / 4));
     }
 
     #[test]
-    fn swizzle_x_bc1_power2() {
+    fn swizzle_x_8_power2() {
         // TODO: Investigate sizes smaller than 16x16.
 
         // These are left shifted by 3 since tiles are 8 bytes.
         let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
-        test_swizzle(0b1000, swizzle_x_bc1(8 / 4, 8 / 4));
-        test_swizzle(0b101000, swizzle_x_bc1(16 / 4, 16 / 4));
-        test_swizzle(0b100101000, swizzle_x_bc1(32 / 4, 32 / 4));
-        test_swizzle(0b10100101000, swizzle_x_bc1(64 / 4, 64 / 4));
-        test_swizzle(0b1100100101000, swizzle_x_bc1(128 / 4, 128 / 4));
-        test_swizzle(0b111000100101000, swizzle_x_bc1(256 / 4, 256 / 4));
-        test_swizzle(0b11110000100101000, swizzle_x_bc1(512 / 4, 512 / 4));
+        test_swizzle(0b1000, swizzle_x_8(8 / 4, 8 / 4));
+        test_swizzle(0b101000, swizzle_x_8(16 / 4, 16 / 4));
+        test_swizzle(0b100101000, swizzle_x_8(32 / 4, 32 / 4));
+        test_swizzle(0b10100101000, swizzle_x_8(64 / 4, 64 / 4));
+        test_swizzle(0b1100100101000, swizzle_x_8(128 / 4, 128 / 4));
+        test_swizzle(0b111000100101000, swizzle_x_8(256 / 4, 256 / 4));
+        test_swizzle(0b11110000100101000, swizzle_x_8(512 / 4, 512 / 4));
     }
 
     #[test]
-    fn swizzle_y_bc1_power2() {
+    fn swizzle_y_8_power2() {
         // TODO: Investigate sizes smaller than 16x16.
-        
+
         // These are left shifted by 3 since tiles are 8 bytes.
         let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
-        test_swizzle(0b10000, swizzle_y_bc1(8 / 4, 8 / 4));
-        test_swizzle(0b1010000, swizzle_y_bc1(16 / 4, 16 / 4));
-        test_swizzle(0b11010000, swizzle_y_bc1(32 / 4, 32 / 4));
-        test_swizzle(0b1011010000, swizzle_y_bc1(64 / 4, 64 / 4));
-        test_swizzle(0b11011010000, swizzle_y_bc1(128 / 4, 128 / 4));
-        test_swizzle(0b111011010000, swizzle_y_bc1(256 / 4, 256 / 4));
-        test_swizzle(0b1111011010000, swizzle_y_bc1(512 / 4, 512 / 4));
+        test_swizzle(0b10000, swizzle_y_8(8 / 4, 8 / 4));
+        test_swizzle(0b1010000, swizzle_y_8(16 / 4, 16 / 4));
+        test_swizzle(0b11010000, swizzle_y_8(32 / 4, 32 / 4));
+        test_swizzle(0b1011010000, swizzle_y_8(64 / 4, 64 / 4));
+        test_swizzle(0b11011010000, swizzle_y_8(128 / 4, 128 / 4));
+        test_swizzle(0b111011010000, swizzle_y_8(256 / 4, 256 / 4));
+        test_swizzle(0b1111011010000, swizzle_y_8(512 / 4, 512 / 4));
     }
 
     #[test]
@@ -159,8 +159,8 @@ mod tests {
         let mut actual = vec![0u8; 64 * 64];
 
         swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             64 / 4,
             64 / 4,
             input,
@@ -179,8 +179,8 @@ mod tests {
         let mut actual = vec![0u8; 128 * 128 / 16 * 8];
 
         swizzle_experimental(
-            swizzle_x_bc1,
-            swizzle_y_bc1,
+            swizzle_x_8,
+            swizzle_y_8,
             128 / 4,
             128 / 4,
             input,
@@ -200,8 +200,8 @@ mod tests {
 
         // BC3 has the same swizzle patterns as BC7.
         swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             128 / 4,
             128 / 4,
             input,
@@ -221,8 +221,8 @@ mod tests {
 
         // R32G32B32A32_FLOAT has the same swizzle patterns as BC7.
         swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             128,
             128,
             input,
@@ -241,8 +241,8 @@ mod tests {
         let mut actual = vec![0u8; 128 * 128];
 
         swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             128 / 4,
             128 / 4,
             input,
@@ -261,8 +261,8 @@ mod tests {
         let mut actual = vec![0u8; 256 * 256];
 
         swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             256 / 4,
             256 / 4,
             input,
@@ -281,8 +281,8 @@ mod tests {
         let mut actual = vec![0u8; 512 * 512];
 
         swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             512 / 4,
             512 / 4,
             input,
@@ -301,8 +301,8 @@ mod tests {
         let mut actual = vec![0u8; 1024 * 1024];
 
         swizzle_experimental(
-            swizzle_x_bc7,
-            swizzle_y_bc7,
+            swizzle_x_16,
+            swizzle_y_16,
             1024 / 4,
             1024 / 4,
             input,
