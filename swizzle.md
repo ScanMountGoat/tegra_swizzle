@@ -1,5 +1,19 @@
 # Swizzling
-The swizzle pattern depends on the width in elements, height in elements, and size of each element.  
+The Nutexb/Tegra X1 texture swizzling can be described as a swizzle function `S: I -> O` where `I` is the set of linear input addresses and `O` is the set of swizzled output addresses. The function `S` maps or "swizzles" a pixel address in `I` to some corresponding address in `O`. The operation of mapping swizzled addresses in `O` to their original linear address in `I` is called "deswizzling". 
+
+In the case where the texture is square and both dimensions are a power of two, the function `S` is bijective. Being bijective means that each input address is mapped to a unique output address. This also implies the sets `S` and `O` have the same number of elements. `S` and `O` have the same size, and no two inputs are mapped to the same output, so it's possible to perform swizzling and deswizzling in place without any memory allocations.  
+
+The case for general texture dimensions is not as trivial. The function `S` is still injective, meaning that if `a1` and `a2` are distinct addresses in `I`, their corresponding output addresses `S(a1)` and `S(a2)` in `O` are distinct. If this were not the case, two different pixels could be mapped to the same swizzled pixel location, causing information loss. This implies that `I` must have at least as many elements as `O`. The function `S` is not invertible since it is not bijective, but it's still possible to define a "deswizzle" function by mapping each address in `O` to the corresponding address in `I`. It might be the case that `O` has more elements than `I` due to padding or some other constraint, so deswizzling needs to be defined slightly more carefully.  
+
+For deswizzling in the general case, the problem of `I` and `O` having a different number of elements can be solved by considering the elements of `I`. Rather than mapping swizzled addresses to linear addresses, we can map linear addresses to swizzled addresses since each linear address has a corresponding swizzled address since `S` is injective. This means the function `S` can be reused to perform both swizzling and deswizzling by swapping the input addresses. In this case, the swizzling and deswizzling only requires a single allocation for the output.  
+
+This means that only the swizzle function `S` needs to be defined for the appropriate formats and dimensions. The swizzle function depends on the width in elements, height in elements, and size of each element. The elements can be defined to be pixels, blocks, or tiles as long as the width and height are calculated appropriately. 
+
+In the general case, this transformation can be represented as a lookup table for input and output addresses. Creating an efficient way to compute the non power of two case is still a work in progress. See the [swizzle_data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for input output pairs for deswizzling. The `..._linear.bin` files are the input files and the `..._linear_deswizzle.bin` files are the result of deswizzling the input.
+
+For the power of two case, `S` can be represented more efficiently as bit patterns for the x and y components of the address. See the [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) for details.
+
+
 
 ## R8G8B8A8, B8G8R8A8 Pixel Swizzle Patterns 
 Swizzle patterns to find the corresponding pixel address when swizzing or deswizzling.  
