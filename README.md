@@ -1,13 +1,17 @@
-# nutexb_swizzle
+# Nutexb Swizzling
 <img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/swizzle3d.png" height="auto" width="100%">
 
-Documentation and tools for Tegra X1 swizzling used for nutexb texture files for Smash Ultimate. See the [swizzle](swizzle.md) page for documentation. The swizzle code and bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/). The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 4x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
+Documentation and tools for Tegra X1 swizzling used for nutexb texture files for Smash Ultimate.  The swizzle code and bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/). The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 4x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
 
+## Documentation
+See the [swizzle](swizzle.md) page for documentation on what formats and dimensions are currently supported as well as an explanation of texture swizzling. 
+
+## nutexb_swizzle
 The program can automatically generate lookup tables for swizzling and deswizzling texture data based on a pair of swizzled and unswizzled image data files. For the power of two case, the lookup table can be efficiently expressed as bit patterns for the x, y, and z components of the pixel address. 
 
 The generated values for the "swizzled" input are unique for each unit of image data. For uncompressed RGBA data, unique values are generated per pixel. For compressed data, unique values are generated for each 4x4 pixel tile. The generated input values are the pixel or tile's linear address (width * y + x), but the program only assumes that all pixel or tile values are unique. The lookup table is computed by finding the new location of each input pixel or tile in the deswizzled output file.  This is handled automatically by correctly specifying the width, height, and format.
 
-## Generating Test Data
+### Generating Test Data
 1. Write unique block values to the Nutexb. Pad the image size with `--blockcount` as needed.  
 `cargo run -- write_addresses -w 512 -h 512 -f bc7 -o "def_mario_001_col.nutexb" --blockcount 43872` 
 2. Write the unique block values to a binary file. Pad the image size with `--blockcount` as needed.  
