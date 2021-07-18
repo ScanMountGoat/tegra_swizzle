@@ -12,7 +12,6 @@ The program can automatically generate lookup tables for swizzling and deswizzli
 The generated values for the "swizzled" input are unique for each unit of image data. For uncompressed RGBA data, unique values are generated per pixel. For compressed data, unique values are generated for each 4x4 pixel tile. The generated input values are the pixel or tile's linear address (width * y + x), but the program only assumes that all pixel or tile values are unique. The lookup table is computed by finding the new location of each input pixel or tile in the deswizzled output file.  This is handled automatically by correctly specifying the width, height, and format.
 
 ### Generating Test Data
-*nutexb_swizzle will attempt to use all available cores for performance reasons. This will result in very high CPU usage, especially for textures larger than 1024x1024.*    
 1. Write unique block values to the Nutexb. Pad the image size with `--blockcount` as needed.  
 `cargo run --release -- write_addresses -w 512 -h 512 -f bc7 -o "def_mario_001_col.nutexb" --blockcount 43872` 
 2. Write the unique block values to a binary file. Pad the image size with `--blockcount` as needed.  
