@@ -177,6 +177,7 @@ fn main() {
             let format =
                 nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
 
+            let start = std::time::Instant::now();
             match format {
                 ImageFormat::Rgba8 => nutexb_swizzle::guess_swizzle_patterns::<u32, _>(
                     swizzled_file,
@@ -201,7 +202,8 @@ fn main() {
                         &format,
                     )
                 }
-            }
+            };
+            eprintln!("Calculate swizzle: {:?}", start.elapsed());
         }
         ("swizzle", Some(sub_m)) => {
             let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();

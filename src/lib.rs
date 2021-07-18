@@ -1,4 +1,5 @@
 use binread::prelude::*;
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::{
     io::{Cursor, Write},
     path::Path,
@@ -208,7 +209,7 @@ fn read_mipmaps_dds<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<Vec<T>> {
     mip_data
 }
 
-fn create_deswizzle_luts<T: PartialEq>(
+fn create_deswizzle_luts<T: PartialEq + Send + Sync>(
     linear_mipmaps: &[Vec<T>],
     deswizzled_mipmaps: &[Vec<T>],
 ) -> Vec<Vec<i64>> {
@@ -222,20 +223,21 @@ fn create_deswizzle_luts<T: PartialEq>(
     luts
 }
 
-fn create_mip_deswizzle_lut<T: PartialEq>(linear: &[T], deswizzled: &[T]) -> Vec<i64> {
+fn create_mip_deswizzle_lut<T: PartialEq + Send + Sync>(linear: &[T], deswizzled: &[T]) -> Vec<i64> {
     // For each deswizzled output block index, find the corresponding input block index.
     // This is O(n^2) where n is the number of blocks since we don't decode the block data to get the index.
-    let mut mip_lut = Vec::new();
-    for block in deswizzled {
+    // TODO: It might be worth assuming that the input was generated using this tool.
+    // This allows for an O(n) lookup instead of an O(n^2) lookup.
+
+    // Parellelize this loop to optimize speed at the cost of very high CPU usage.
+    deswizzled.par_iter().map(|block| {
         match linear.iter().position(|b| b == block) {
-            Some(value) => mip_lut.push(value as i64),
+            Some(value) => value as i64,
             None => {
-                mip_lut.push(-1);
+                -1
             }
         }
-    }
-
-    mip_lut
+    }).collect()
 }
 
 // TODO: Return result?
@@ -315,7 +317,11 @@ fn print_swizzle_patterns(
     println!("y: {:032b}", deswizzle_lut[y_pattern_index]);
 }
 
-pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<Path>>(
+fn get_mipmap_range(lut: &[i64]) -> (i64, i64) {
+    (*lut.iter().min().unwrap(), *lut.iter().max().unwrap())
+}
+
+pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy + Send + Sync, P: AsRef<Path>>(
     swizzled_file: P,
     deswizzled_file: P,
     width: usize,
@@ -354,14 +360,12 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
             }
 
             // Calculate the start and end of the mipmap based on block indices.
-            let mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
-            let start_index = mip_lut.iter().min().unwrap();
-            let end_index = mip_lut.iter().max().unwrap();
+            let mut mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
+            let (start_index, end_index) = get_mipmap_range(&mip_lut);
             println!("Start Index: {:?}", start_index);
             println!("End Index: {:?}", end_index);
 
             // For the swizzle patterns, assume the swizzling starts from the mipmap offset.
-            let mut mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
             for val in mip_lut.iter_mut() {
                 *val -= start_index;
             }
