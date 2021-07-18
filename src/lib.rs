@@ -98,6 +98,7 @@ pub fn deswizzle_data(
     let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
     // TODO: Support other formats.
     match format {
+        // TODO: This can just be based on block size rather than image format.
         ImageFormat::Rgba8 => {}
         ImageFormat::Bc1 => swizzle::swizzle_experimental(
             swizzle_x_8,
@@ -396,8 +397,8 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy, P: AsRef<
     }
 }
 
-pub fn create_nutexb(
-    writer: &mut std::fs::File,
+pub fn create_nutexb<W: Write>(
+    writer: &mut W,
     width: usize,
     height: usize,
     name: &str,

@@ -140,7 +140,7 @@ fn main() {
                 },
             };
 
-            let mut writer = std::fs::File::create(output).unwrap();
+            let mut writer = std::io::BufWriter::new(std::fs::File::create(output).unwrap());
 
             if output.extension().unwrap() == "nutexb" {
                 // Write the appropriate data to the first miplevel of a new nutexb.
