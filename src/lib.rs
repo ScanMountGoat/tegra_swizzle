@@ -1,6 +1,6 @@
 use binread::prelude::*;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::{
+    collections::HashMap,
     io::{Cursor, Write},
     path::Path,
 };
@@ -17,6 +17,11 @@ pub enum ImageFormat {
     Bc3,
     Bc7,
 }
+
+/// The necessary trait bounds for types that can be used for swizzle calculation functions.
+/// The [u32], [u64], and [u128] types implement the necessary traits and can be used to represent block sizes of 4, 8, and 16 bytes, respectively.
+pub trait LookupBlock: BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash {}
+impl<T: BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash> LookupBlock for T {}
 
 pub fn swizzle_data(
     input_data: &[u8],
@@ -62,7 +67,7 @@ pub fn swizzle_data(
             &mut output_data[..],
             false,
             16,
-        )
+        ),
     }
 
     output_data
@@ -130,7 +135,7 @@ pub fn deswizzle_data(
             &mut output_data[..],
             true,
             16,
-        )
+        ),
     }
 
     output_data
@@ -209,7 +214,7 @@ fn read_mipmaps_dds<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<Vec<T>> {
     mip_data
 }
 
-fn create_deswizzle_luts<T: PartialEq + Send + Sync>(
+fn create_deswizzle_luts<T: LookupBlock>(
     linear_mipmaps: &[Vec<T>],
     deswizzled_mipmaps: &[Vec<T>],
 ) -> Vec<Vec<i64>> {
@@ -223,21 +228,27 @@ fn create_deswizzle_luts<T: PartialEq + Send + Sync>(
     luts
 }
 
-fn create_mip_deswizzle_lut<T: PartialEq + Send + Sync>(linear: &[T], deswizzled: &[T]) -> Vec<i64> {
+fn create_mip_deswizzle_lut<T: LookupBlock>(
+    linear: &[T],
+    deswizzled: &[T],
+) -> Vec<i64> {
     // For each deswizzled output block index, find the corresponding input block index.
-    // This is O(n^2) where n is the number of blocks since we don't decode the block data to get the index.
-    // TODO: It might be worth assuming that the input was generated using this tool.
-    // This allows for an O(n) lookup instead of an O(n^2) lookup.
+    // The lookup table allows for iterating the input lists only once for an O(n) running time.
+    let mut linear_index_by_block = HashMap::new();
+    for (i, value) in linear.iter().enumerate() {
+        linear_index_by_block.insert(value, i);
+    }
 
-    // Parellelize this loop to optimize speed at the cost of very high CPU usage.
-    deswizzled.par_iter().map(|block| {
-        match linear.iter().position(|b| b == block) {
-            Some(value) => value as i64,
-            None => {
-                -1
-            }
-        }
-    }).collect()
+    // TODO: This benchmarks as slightly faster when run with par_iter().
+    deswizzled
+        .iter()
+        .map(|block| {
+            linear_index_by_block
+                .get(block)
+                .map(|i| *i as i64)
+                .unwrap_or(-1)
+        })
+        .collect()
 }
 
 // TODO: Return result?
@@ -321,7 +332,10 @@ fn get_mipmap_range(lut: &[i64]) -> (i64, i64) {
     (*lut.iter().min().unwrap(), *lut.iter().max().unwrap())
 }
 
-pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy + Send + Sync, P: AsRef<Path>>(
+pub fn guess_swizzle_patterns<
+    T: LookupBlock,
+    P: AsRef<Path>,
+>(
     swizzled_file: P,
     deswizzled_file: P,
     width: usize,
@@ -348,6 +362,7 @@ pub fn guess_swizzle_patterns<T: BinRead + PartialEq + Default + Copy + Send + S
         _ => vec![read_blocks::<_, T>(&deswizzled_file)],
     };
 
+    // TODO: It should be possible to iterate over the mips in parallel and collect output at the end.
     if swizzled_mipmaps.len() == 1 && deswizzled_mipmaps.len() > 1 {
         // Assume the input blocks cover all mip levels.
         // This allows for calculating mip offsets and sizes.
