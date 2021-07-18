@@ -1,7 +1,7 @@
+use ahash::AHashMap;
 use binread::prelude::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
-    collections::HashMap,
     io::{Cursor, Write},
     path::Path,
 };
@@ -238,14 +238,13 @@ fn create_deswizzle_luts<T: LookupBlock>(
 fn create_mip_deswizzle_lut<T: LookupBlock>(linear: &[T], deswizzled: &[T]) -> Vec<i64> {
     // For each deswizzled output block index, find the corresponding input block index.
     // The lookup table allows for iterating the input lists only once for an O(n) running time.
-    let mut linear_index_by_block = HashMap::new();
+    let mut linear_index_by_block = AHashMap::with_capacity(linear.len());
     for (i, value) in linear.iter().enumerate() {
         linear_index_by_block.insert(value, i);
     }
 
-    // TODO: This benchmarks as slightly faster when run with par_iter().
     deswizzled
-        .iter()
+        .par_iter()
         .map(|block| {
             linear_index_by_block
                 .get(block)
@@ -391,12 +390,12 @@ pub fn guess_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
                     *val -= start_index;
                 }
 
-                let swizzle_output = match format {
-                    ImageFormat::Rgba8 => {
-                        get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 1)
-                    }
-                    _ => get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 4),
+                let tile_dimension = match format {
+                    ImageFormat::Rgba8 => 1,
+                    _ => 4,
                 };
+                let swizzle_output =
+                    get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension);
 
                 format!(
                     "Start Index: {:?}\nEnd Index: {:?}\n{}\n",
@@ -411,22 +410,27 @@ pub fn guess_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
     } else {
         // Compare both mipmaps.
         let mip_luts = create_deswizzle_luts(&swizzled_mipmaps, &deswizzled_mipmaps);
-
+        let mip_luts: Vec<_> = mip_luts.iter().enumerate().collect();
         // TODO: This can also be done in parallel.
-        for (i, mip_lut) in mip_luts.iter().enumerate() {
-            // TODO: Is this necessary for all formats?
-            let mip_width = width / (2usize.pow(i as u32));
-            let mip_height = height / (2usize.pow(i as u32));
-            if mip_width < 4 || mip_height < 4 {
-                break;
-            }
-
-            let output = match format {
-                ImageFormat::Rgba8 => {
-                    get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 1)
+        let mip_outputs: Vec<_> = mip_luts
+            .iter()
+            .map(|(i, mip_lut)| {
+                // TODO: Is this necessary for all formats?
+                let mip_width = width / (2usize.pow(*i as u32));
+                let mip_height = height / (2usize.pow(*i as u32));
+                if mip_width < 4 || mip_height < 4 {
+                    return String::new();
                 }
-                _ => get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 4),
-            };
+
+                let tile_dimension = match format {
+                    ImageFormat::Rgba8 => 1,
+                    _ => 4,
+                };
+                get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension)
+            })
+            .collect();
+
+        for output in mip_outputs {
             println!("{}", output);
         }
     }
