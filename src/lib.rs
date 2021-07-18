@@ -1,4 +1,5 @@
 use binread::prelude::*;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     collections::HashMap,
     io::{Cursor, Write},
@@ -20,8 +21,14 @@ pub enum ImageFormat {
 
 /// The necessary trait bounds for types that can be used for swizzle calculation functions.
 /// The [u32], [u64], and [u128] types implement the necessary traits and can be used to represent block sizes of 4, 8, and 16 bytes, respectively.
-pub trait LookupBlock: BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash {}
-impl<T: BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash> LookupBlock for T {}
+pub trait LookupBlock:
+    BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash
+{
+}
+impl<T: BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash> LookupBlock
+    for T
+{
+}
 
 pub fn swizzle_data(
     input_data: &[u8],
@@ -228,10 +235,7 @@ fn create_deswizzle_luts<T: LookupBlock>(
     luts
 }
 
-fn create_mip_deswizzle_lut<T: LookupBlock>(
-    linear: &[T],
-    deswizzled: &[T],
-) -> Vec<i64> {
+fn create_mip_deswizzle_lut<T: LookupBlock>(linear: &[T], deswizzled: &[T]) -> Vec<i64> {
     // For each deswizzled output block index, find the corresponding input block index.
     // The lookup table allows for iterating the input lists only once for an O(n) running time.
     let mut linear_index_by_block = HashMap::new();
@@ -299,17 +303,16 @@ pub fn write_bc1_lut<W: Write>(writer: &mut W, block_count: usize) {
     }
 }
 
-fn print_swizzle_patterns(
+fn get_swizzle_patterns_output(
     deswizzle_lut: &[i64],
     width: usize,
     height: usize,
     tile_dimension: usize,
-) {
+) -> String {
     if width == 0 || height == 0 || deswizzle_lut.is_empty() {
-        return;
+        return String::new();
     }
 
-    println!("width: {:?}, height: {:?}", width, height);
     let width_in_tiles = width / tile_dimension;
     let height_in_tiles = height / tile_dimension;
 
@@ -324,18 +327,17 @@ fn print_swizzle_patterns(
         0
     };
 
-    println!("x: {:032b}", deswizzle_lut[x_pattern_index]);
-    println!("y: {:032b}", deswizzle_lut[y_pattern_index]);
+    return format!(
+        "width: {:?}, height: {:?}\nx: {:032b}\ny: {:032b}",
+        width, height, deswizzle_lut[x_pattern_index], deswizzle_lut[y_pattern_index]
+    );
 }
 
 fn get_mipmap_range(lut: &[i64]) -> (i64, i64) {
     (*lut.iter().min().unwrap(), *lut.iter().max().unwrap())
 }
 
-pub fn guess_swizzle_patterns<
-    T: LookupBlock,
-    P: AsRef<Path>,
->(
+pub fn guess_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
     swizzled_file: P,
     deswizzled_file: P,
     width: usize,
@@ -362,56 +364,70 @@ pub fn guess_swizzle_patterns<
         _ => vec![read_blocks::<_, T>(&deswizzled_file)],
     };
 
-    // TODO: It should be possible to iterate over the mips in parallel and collect output at the end.
+    // TODO: There is a lot of repetition for these two conditions.
     if swizzled_mipmaps.len() == 1 && deswizzled_mipmaps.len() > 1 {
-        // Assume the input blocks cover all mip levels.
-        // This allows for calculating mip offsets and sizes.
-        let mut mip_width = width;
-        let mut mip_height = height;
-        for mip in deswizzled_mipmaps {
-            // TODO: Is this necessary for all formats?
-            if mip_width < 4 || mip_height < 4 {
-                break;
-            }
+        // Associate each mipmap with its mip level to avoid having to use enumerate with rayon.
+        let deswizzled_mipmaps: Vec<_> = deswizzled_mipmaps.iter().enumerate().collect();
 
-            // Calculate the start and end of the mipmap based on block indices.
-            let mut mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
-            let (start_index, end_index) = get_mipmap_range(&mip_lut);
-            println!("Start Index: {:?}", start_index);
-            println!("End Index: {:?}", end_index);
+        // The mipmaps can now be computed independently.
+        // Collect will ensure the outputs are still displayed in the expected order.
+        let mip_outputs: Vec<_> = deswizzled_mipmaps
+            .par_iter()
+            .map(|(i, mip)| {
+                // TODO: Is this necessary for all formats?
+                let mip_width = width / (2usize.pow(*i as u32));
+                let mip_height = height / (2usize.pow(*i as u32));
+                if mip_width < 4 || mip_height < 4 {
+                    return String::new();
+                }
 
-            // For the swizzle patterns, assume the swizzling starts from the mipmap offset.
-            for val in mip_lut.iter_mut() {
-                *val -= start_index;
-            }
+                // Assume the input blocks cover all mip levels.
+                // This allows for calculating mip offsets and sizes based on the range of block indices.
+                let mut mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
+                let (start_index, end_index) = get_mipmap_range(&mip_lut);
 
-            match format {
-                ImageFormat::Rgba8 => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
-                _ => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 4),
-            }
-            println!();
+                // For the swizzle patterns, assume the swizzling starts from the mipmap offset.
+                for val in mip_lut.iter_mut() {
+                    *val -= start_index;
+                }
 
-            mip_width /= 2;
-            mip_height /= 2;
+                let swizzle_output = match format {
+                    ImageFormat::Rgba8 => {
+                        get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 1)
+                    }
+                    _ => get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 4),
+                };
+
+                format!(
+                    "Start Index: {:?}\nEnd Index: {:?}\n{}\n",
+                    start_index, end_index, swizzle_output
+                )
+            })
+            .collect();
+
+        for output in mip_outputs {
+            println!("{}", output);
         }
     } else {
         // Compare both mipmaps.
-        let lut = create_deswizzle_luts(&swizzled_mipmaps, &deswizzled_mipmaps);
+        let mip_luts = create_deswizzle_luts(&swizzled_mipmaps, &deswizzled_mipmaps);
 
-        let mut mip_width = width;
-        let mut mip_height = height;
-        for mip_lut in lut {
+        // TODO: This can also be done in parallel.
+        for (i, mip_lut) in mip_luts.iter().enumerate() {
             // TODO: Is this necessary for all formats?
+            let mip_width = width / (2usize.pow(i as u32));
+            let mip_height = height / (2usize.pow(i as u32));
             if mip_width < 4 || mip_height < 4 {
                 break;
             }
 
-            match format {
-                ImageFormat::Rgba8 => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 1),
-                _ => print_swizzle_patterns(&mip_lut, mip_width, mip_height, 4),
-            }
-            mip_width /= 2;
-            mip_height /= 2;
+            let output = match format {
+                ImageFormat::Rgba8 => {
+                    get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 1)
+                }
+                _ => get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, 4),
+            };
+            println!("{}", output);
         }
     }
 }
