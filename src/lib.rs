@@ -53,7 +53,7 @@ pub fn swizzle_data(
             &input_data,
             &mut output_data[..],
             false,
-            8,
+            tile_size,
         ),
         ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
             swizzle_x_16,
@@ -63,7 +63,7 @@ pub fn swizzle_data(
             &input_data,
             &mut output_data[..],
             false,
-            16,
+            tile_size,
         ),
         ImageFormat::RgbaF32 => swizzle::swizzle_experimental(
             swizzle_x_16,
@@ -73,7 +73,7 @@ pub fn swizzle_data(
             &input_data,
             &mut output_data[..],
             false,
-            16,
+            tile_size,
         ),
     }
 
@@ -176,12 +176,11 @@ pub fn try_get_image_format(format: &str) -> std::result::Result<ImageFormat, &s
     }
 }
 
-fn get_tile_size(format: &ImageFormat) -> usize {
+pub fn get_tile_size(format: &ImageFormat) -> usize {
     match format {
         ImageFormat::Rgba8 => 4,
-        ImageFormat::RgbaF32 => 16,
         ImageFormat::Bc1 => 8,
-        ImageFormat::Bc3 | ImageFormat::Bc7 => 16,
+        ImageFormat::Bc3 | ImageFormat::Bc7 | ImageFormat::RgbaF32 => 16,
     }
 }
 
@@ -228,25 +227,26 @@ fn create_deswizzle_luts<T: LookupBlock>(
     let mut luts = Vec::new();
 
     for (linear_mip, deswizzled_mip) in deswizzled_mipmaps.iter().zip(linear_mipmaps) {
-        let mip_lut = create_mip_deswizzle_lut(linear_mip, deswizzled_mip);
+        let mip_lut = create_swizzle_lut(linear_mip, deswizzled_mip);
         luts.push(mip_lut);
     }
 
     luts
 }
 
-fn create_mip_deswizzle_lut<T: LookupBlock>(linear: &[T], deswizzled: &[T]) -> Vec<i64> {
+fn create_swizzle_lut<T: LookupBlock>(swizzled: &[T], deswizzled: &[T]) -> Vec<i64> {
     // For each deswizzled output block index, find the corresponding input block index.
     // The lookup table allows for iterating the input lists only once for an O(n) running time.
-    let mut linear_index_by_block = AHashMap::with_capacity(linear.len());
-    for (i, value) in linear.iter().enumerate() {
-        linear_index_by_block.insert(value, i);
+    let mut swizzled_index_by_block = AHashMap::with_capacity(swizzled.len());
+    for (i, value) in swizzled.iter().enumerate() {
+        swizzled_index_by_block.insert(value, i);
     }
 
+    // The resulting LUT finds the index after swizzling for a given input index.
     deswizzled
         .par_iter()
         .map(|block| {
-            linear_index_by_block
+            swizzled_index_by_block
                 .get(block)
                 .map(|i| *i as i64)
                 .unwrap_or(-1)
@@ -337,7 +337,39 @@ fn get_mipmap_range(lut: &[i64]) -> (i64, i64) {
     (*lut.iter().min().unwrap(), *lut.iter().max().unwrap())
 }
 
-pub fn guess_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
+pub fn write_lut_csv<P: AsRef<Path>>(
+    swizzled_file: P,
+    deswizzled_file: P,
+    output_csv: P,
+    format: &ImageFormat,
+) {
+    // TODO: Tile size should be an enum.
+    // TODO: All this arithmetic should be handled by functions with proper tests.
+    match get_tile_size(format) {
+        4 => write_lut_csv_inner::<u32, _>(swizzled_file, deswizzled_file, output_csv),
+        8 => write_lut_csv_inner::<u64, _>(swizzled_file, deswizzled_file, output_csv),
+        16 => write_lut_csv_inner::<u128, _>(swizzled_file, deswizzled_file, output_csv),
+        _ => (),
+    }
+}
+
+// TODO: Handle errors.
+fn write_lut_csv_inner<T: LookupBlock, P: AsRef<Path>>(
+    swizzled_file: P,
+    deswizzled_file: P,
+    output_csv: P,
+) {
+    let swizzled_data = read_blocks::<_, T>(&swizzled_file);
+    let deswizzled_data = read_blocks::<_, T>(&deswizzled_file);
+    let swizzle_lut = create_swizzle_lut(&swizzled_data, &deswizzled_data);
+    let mut writer = csv::Writer::from_path(output_csv).unwrap();
+    writer.serialize(("input_index", "swizzled_index")).unwrap();
+    for (input, output) in swizzle_lut.iter().enumerate() {
+        writer.serialize((input, output)).unwrap();
+    }
+}
+
+pub fn print_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
     swizzled_file: P,
     deswizzled_file: P,
     width: usize,
@@ -383,7 +415,7 @@ pub fn guess_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
 
                 // Assume the input blocks cover all mip levels.
                 // This allows for calculating mip offsets and sizes based on the range of block indices.
-                let mut mip_lut = create_mip_deswizzle_lut(&swizzled_mipmaps[0], &mip);
+                let mut mip_lut = create_swizzle_lut(&swizzled_mipmaps[0], &mip);
                 let (start_index, end_index) = get_mipmap_range(&mip_lut);
 
                 // For the swizzle patterns, assume the swizzling starts from the mipmap offset.
