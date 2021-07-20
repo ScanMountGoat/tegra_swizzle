@@ -1,5 +1,6 @@
 use ahash::AHashMap;
 use binread::prelude::*;
+use formats::ImageFormat;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     io::{Cursor, Write},
@@ -8,16 +9,9 @@ use std::{
 
 use crate::swizzle::{swizzle_x_16, swizzle_x_8, swizzle_y_16, swizzle_y_8};
 
+pub mod formats;
 mod nutexb;
 mod swizzle;
-
-pub enum ImageFormat {
-    Rgba8,
-    RgbaF32,
-    Bc1,
-    Bc3,
-    Bc7,
-}
 
 /// The necessary trait bounds for types that can be used for swizzle calculation functions.
 /// The [u32], [u64], and [u128] types implement the necessary traits and can be used to represent block sizes of 4, 8, and 16 bytes, respectively.
@@ -39,7 +33,7 @@ pub fn swizzle_data(
     let width_in_blocks = width / 4;
     let height_in_blocks = height / 4;
 
-    let tile_size = get_tile_size(format);
+    let tile_size = format.get_tile_size_in_bytes();
 
     let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
     // TODO: Support other formats.
@@ -103,10 +97,10 @@ pub fn deswizzle_data(
     format: &ImageFormat,
 ) -> Vec<u8> {
     // TODO: This isn't correct for RGBA.
-    let width_in_blocks = width / 4;
-    let height_in_blocks = height / 4;
+    let width_in_blocks = width / format.get_tile_dimension();
+    let height_in_blocks = height / format.get_tile_dimension();
 
-    let tile_size = get_tile_size(format);
+    let tile_size = format.get_tile_size_in_bytes();
 
     let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
     // TODO: Support other formats.
@@ -121,7 +115,7 @@ pub fn deswizzle_data(
             &input_data,
             &mut output_data[..],
             true,
-            8,
+            tile_size,
         ),
         ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
             swizzle_x_16,
@@ -131,7 +125,7 @@ pub fn deswizzle_data(
             &input_data,
             &mut output_data[..],
             true,
-            16,
+            tile_size,
         ),
         ImageFormat::RgbaF32 => swizzle::swizzle_experimental(
             swizzle_x_16,
@@ -141,7 +135,7 @@ pub fn deswizzle_data(
             &input_data,
             &mut output_data[..],
             true,
-            16,
+            tile_size,
         ),
     }
 
@@ -162,25 +156,6 @@ pub fn deswizzle<P: AsRef<Path>>(
     let mut writer = std::fs::File::create(output).unwrap();
     for value in output_data {
         writer.write_all(&value.to_le_bytes()).unwrap();
-    }
-}
-
-pub fn try_get_image_format(format: &str) -> std::result::Result<ImageFormat, &str> {
-    match format {
-        "rgba8" => Ok(ImageFormat::Rgba8),
-        "rgbaf32" => Ok(ImageFormat::RgbaF32),
-        "bc1" => Ok(ImageFormat::Bc1),
-        "bc3" => Ok(ImageFormat::Bc3),
-        "bc7" => Ok(ImageFormat::Bc7),
-        _ => Err("Unsupported format"),
-    }
-}
-
-pub fn get_tile_size(format: &ImageFormat) -> usize {
-    match format {
-        ImageFormat::Rgba8 => 4,
-        ImageFormat::Bc1 => 8,
-        ImageFormat::Bc3 | ImageFormat::Bc7 | ImageFormat::RgbaF32 => 16,
     }
 }
 
@@ -344,8 +319,8 @@ pub fn write_lut_csv<P: AsRef<Path>>(
     format: &ImageFormat,
 ) {
     // TODO: Tile size should be an enum.
-    // TODO: All this arithmetic should be handled by functions with proper tests.
-    match get_tile_size(format) {
+    // TODO: Associate block types with each variant?
+    match format.get_tile_size_in_bytes() {
         4 => write_lut_csv_inner::<u32, _>(swizzled_file, deswizzled_file, output_csv),
         8 => write_lut_csv_inner::<u64, _>(swizzled_file, deswizzled_file, output_csv),
         16 => write_lut_csv_inner::<u128, _>(swizzled_file, deswizzled_file, output_csv),
@@ -423,10 +398,7 @@ pub fn print_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
                     *val -= start_index;
                 }
 
-                let tile_dimension = match format {
-                    ImageFormat::Rgba8 => 1,
-                    _ => 4,
-                };
+                let tile_dimension = format.get_tile_dimension();
                 let swizzle_output =
                     get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension);
 
@@ -455,10 +427,8 @@ pub fn print_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
                     return String::new();
                 }
 
-                let tile_dimension = match format {
-                    ImageFormat::Rgba8 => 1,
-                    _ => 4,
-                };
+                let tile_dimension = format.get_tile_dimension();
+
                 get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension)
             })
             .collect();
@@ -504,3 +474,4 @@ pub fn create_nutexb<W: Write>(
     )
     .unwrap();
 }
+

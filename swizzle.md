@@ -14,8 +14,10 @@ In the general case, this transformation can be represented as a lookup table fo
 For the power of two case, `S` can be represented more efficiently as bit patterns for the x and y components of the address. See the [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) for details.
 
 
+## Swizzle Patterns
+Swizzling can be grouped into three separate block sizes that cover all the current Nutexb formats. Formats can have either 4 bytes, 8 bytes, or 16 bytes per block. For uncompressed formats, pixels are treated as blocks.
 
-## R8G8B8A8, B8G8R8A8 Pixel Swizzle Patterns 
+### Block 4 Swizzle Patterns (R8G8B8A8, B8G8R8A8)
 Swizzle patterns to find the corresponding pixel address when swizzing or deswizzling.  
 The starting address of each block requires padding the address on the right with 2 bits since RGBA pixels are 4 bytes.  
 
@@ -27,7 +29,24 @@ The starting address of each block requires padding the address on the right wit
 | 512  | 512  | 0011111000001111 | 00111100000111110000 |
 | 1024 | 1024 | 1111110000001111 | 11110000001111110000 |
 
-## BC2, BC3, BC5, BC6, BC7, R32G32B32A32_Float Swizzle Patterns 
+### Block 8 Swizzle Patterns (BC1, BC4)
+Swizzle patterns to find the corresponding block index when swizzling or deswizzling.  
+Each 4x4 tile is represented as a single 8 byte block. The starting byte address of each block requires 
+padding the address on the right with 3 bits since blocks are 8 bytes.  
+
+*TODO: Investigate sizes smaller than 16x16*
+
+| Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
+| --- | --- | --- | --- | --- | --- |
+| 8   | 8   | 2   | 2   | 00000000000001 | 000000000000010 |
+| 16  | 16  | 4   | 4   | 00000000000101 | 000000000001010 |
+| 32  | 32  | 8   | 8   | 00000000100101 | 000000000011010 |
+| 64  | 64  | 16  | 16  | 00000010100101 | 000000001011010 |
+| 128 | 128 | 32  | 32  | 00001100100101 | 000000011011010 |
+| 256 | 256 | 64  | 64  | 00111000100101 | 000000111011010 |
+| 512 | 512 | 128 | 128 | 11110000100101 | 000001111011010 |
+
+### Block 16 Swizzle Patterns (BC2, BC3, BC5, BC6, BC7, R32G32B32A32_Float)
 Swizzle patterns to find the corresponding block index when swizzling or deswizzling.  
 Each 4x4 tile is represented as a single 16 byte block. The starting byte address of each block requires 
 padding the address on the right with 4 bits since blocks are 16 bytes.  
@@ -51,20 +70,3 @@ For example, a 128x128 pixel R32G32B32A32_Float image will use the patterns for 
 | 2048 | 2048 | 512  | 512  | 00001111111000010010 | 00110000000111101101 |
 | 4096 | 4096 | 1024 | 1024 | 00011111110000000111 | 11100000001111111000 |
 
-
-## BC1, BC4 Swizzle Patterns 
-Swizzle patterns to find the corresponding block index when swizzling or deswizzling.  
-Each 4x4 tile is represented as a single 8 byte block. The starting byte address of each block requires 
-padding the address on the right with 3 bits since blocks are 8 bytes.  
-
-*TODO: Investigate sizes smaller than 16x16*
-
-| Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
-| --- | --- | --- | --- | --- | --- |
-| 8   | 8   | 2   | 2   | 00000000000001 | 000000000000010 |
-| 16  | 16  | 4   | 4   | 00000000000101 | 000000000001010 |
-| 32  | 32  | 8   | 8   | 00000000100101 | 000000000011010 |
-| 64  | 64  | 16  | 16  | 00000010100101 | 000000001011010 |
-| 128 | 128 | 32  | 32  | 00001100100101 | 000000011011010 |
-| 256 | 256 | 64  | 64  | 00111000100101 | 000000111011010 |
-| 512 | 512 | 128 | 128 | 11110000100101 | 000001111011010 |

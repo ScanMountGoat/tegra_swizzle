@@ -1,10 +1,11 @@
 use clap::{App, AppSettings, Arg, SubCommand};
-use nutexb_swizzle::{deswizzle, swizzle, ImageFormat};
+use nutexb_swizzle::{deswizzle, swizzle};
+use nutexb_swizzle::formats::ImageFormat;
 use std::path::Path;
+use std::str::FromStr;
 
 fn main() {
     // TODO: Use a yaml to configure this?
-    // TODO: Share common parameters using variables?
     let format_arg = Arg::with_name("format")
         .short("f")
         .long("format")
@@ -42,6 +43,9 @@ fn main() {
         .subcommand(
             SubCommand::with_name("calculate_swizzle")
                 .about("Prints swizzle patterns for all provided mipmaps")
+                .arg(&format_arg)
+                .arg(&width_arg)
+                .arg(&height_arg)
                 .arg(
                     Arg::with_name("swizzled")
                         .long("swizzled")
@@ -57,10 +61,7 @@ fn main() {
                         )
                         .required(true)
                         .takes_value(true),
-                )
-                .arg(&format_arg)
-                .arg(&width_arg)
-                .arg(&height_arg),
+                ),
         )
         .subcommand(
             SubCommand::with_name("write_addresses")
@@ -80,6 +81,10 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("swizzle")
+                .about("Swizzles the input using experimental swizzle functions")
+                .arg(&format_arg)
+                .arg(&width_arg)
+                .arg(&height_arg)
                 .arg(
                     Arg::with_name("input")
                         .short("i")
@@ -95,13 +100,14 @@ fn main() {
                         .help("The deswizzled output data")
                         .required(true)
                         .takes_value(true),
-                )
-                .arg(&format_arg)
-                .arg(&width_arg)
-                .arg(&height_arg),
+                ),
         )
         .subcommand(
             SubCommand::with_name("deswizzle")
+                .about("Deswizzles the input using experimental swizzle functions")
+                .arg(&format_arg)
+                .arg(&width_arg)
+                .arg(&height_arg)
                 .arg(
                     Arg::with_name("input")
                         .short("i")
@@ -117,15 +123,12 @@ fn main() {
                         .help("The deswizzled output data")
                         .required(true)
                         .takes_value(true),
-                )
-                .arg(&format_arg)
-                .arg(&width_arg)
-                .arg(&height_arg),
+                ),
         )
         .subcommand(
-            // TODO: use consistent argument ordering
             SubCommand::with_name("write_swizzle_lut")
                 .about("Writes swizzled and deswizzled address pairs in CSV format")
+                .arg(&format_arg)
                 .arg(
                     Arg::with_name("swizzled")
                         .long("swizzled")
@@ -149,8 +152,7 @@ fn main() {
                         .help("The output CSV file")
                         .required(true)
                         .takes_value(true),
-                )
-                .arg(&format_arg)
+                ),
         )
         .get_matches();
 
@@ -168,7 +170,7 @@ fn main() {
             let input = sub_m.value_of("input").unwrap();
             let output = sub_m.value_of("output").unwrap();
             let format_text = sub_m.value_of("format").unwrap();
-            let format = nutexb_swizzle::try_get_image_format(format_text).unwrap();
+            let format = ImageFormat::from_str(format_text).unwrap();
 
             swizzle(input, output, width, height, &format);
         }
@@ -178,7 +180,7 @@ fn main() {
             let input = sub_m.value_of("input").unwrap();
             let output = sub_m.value_of("output").unwrap();
             let format_text = sub_m.value_of("format").unwrap();
-            let format = nutexb_swizzle::try_get_image_format(format_text).unwrap();
+            let format = ImageFormat::from_str(format_text).unwrap();
 
             deswizzle(input, output, width, height, &format);
         }
@@ -187,7 +189,7 @@ fn main() {
             let deswizzled_file = sub_m.value_of("deswizzled").unwrap();
             let output = sub_m.value_of("output").unwrap();
             let format_text = sub_m.value_of("format").unwrap();
-            let format = nutexb_swizzle::try_get_image_format(format_text).unwrap();
+            let format = ImageFormat::from_str(format_text).unwrap();
 
             nutexb_swizzle::write_lut_csv(swizzled_file, deswizzled_file, output, &format);
         }
@@ -201,7 +203,11 @@ fn calculate_swizzle(sub_m: &clap::ArgMatches) {
     let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
     let swizzled_file = sub_m.value_of("swizzled").unwrap();
     let deswizzled_file = sub_m.value_of("deswizzled").unwrap();
-    let format = nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+    let format = ImageFormat::from_str(sub_m.value_of("format").unwrap()).unwrap();
+    calculate_swizzle_with_format(format, swizzled_file, deswizzled_file, width, height);
+}
+
+fn calculate_swizzle_with_format(format: ImageFormat, swizzled_file: &str, deswizzled_file: &str, width: usize, height: usize) {
     match format {
         ImageFormat::Rgba8 => nutexb_swizzle::print_swizzle_patterns::<u32, _>(
             swizzled_file,
@@ -233,18 +239,13 @@ fn write_addresses(sub_m: &clap::ArgMatches) {
     let output = Path::new(sub_m.value_of("output").unwrap());
     let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
     let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
-    let format = nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
+    let format = ImageFormat::from_str(sub_m.value_of("format").unwrap()).unwrap();
     let block_count: usize = match sub_m.value_of("imagesize") {
         Some(v) => {
             let image_size: usize = v.parse().unwrap();
-            image_size / nutexb_swizzle::get_tile_size(&format)
+            image_size / format.get_tile_size_in_bytes()
         }
-        None => match format {
-            // TODO: Is this correct?
-            ImageFormat::Rgba8 => width * height,
-            ImageFormat::RgbaF32 => width * height,
-            _ => width * height / 16,
-        },
+        None => format.get_tile_count(width, height),
     };
     let mut writer = std::io::BufWriter::new(std::fs::File::create(output).unwrap());
     if output.extension().unwrap() == "nutexb" {

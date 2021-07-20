@@ -105,8 +105,8 @@ mod tests {
         test_swizzle(0b1111000100100000, swizzle_x_16(256 / 4, 256 / 4));
         test_swizzle(0b111110000100100000, swizzle_x_16(512 / 4, 512 / 4));
         test_swizzle(0b1111110000100100000, swizzle_x_16(1024 / 4, 1024 / 4));
-        // TODO: Fix these test cases.
         test_swizzle(0b11111110000100100000, swizzle_x_16(2048 / 4, 2048 / 4));
+        // TODO: Fix these test cases.
         test_swizzle(0b111111100000001110000, swizzle_x_16(4096 / 4, 4096 / 4));
     }
 
