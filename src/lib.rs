@@ -265,6 +265,7 @@ pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
 pub fn write_rgba_f32_lut<W: Write>(writer: &mut W, pixel_count: usize) {
     for i in 0..pixel_count {
         // Use the linear address to create unique pixel values.
+        // Writing the index directly would result in values being clipped to 0f32.
         // TODO: This only works up to 16777216.
         // TODO: Flip sign bit for larger values?
         writer.write_all(&(i as f32).to_le_bytes()).unwrap();

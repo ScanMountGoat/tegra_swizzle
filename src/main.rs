@@ -14,9 +14,9 @@ fn main() {
         .possible_values(&["bc1", "bc3", "bc7", "rgba8", "rgbaf32"])
         .case_insensitive(true);
 
-    let block_count_arg = Arg::with_name("blockcount")
-        .long("blockcount")
-        .help("The number of blocks to write or number of pixels for uncompressed data")
+    let image_size_arg = Arg::with_name("imagesize")
+        .long("imagesize")
+        .help("The total number of bytes of data to write.")
         .required(false)
         .takes_value(true);
 
@@ -66,7 +66,7 @@ fn main() {
                 .arg(&format_arg)
                 .arg(&width_arg)
                 .arg(&height_arg)
-                .arg(&block_count_arg)
+                .arg(&image_size_arg)
                 .arg(
                     Arg::with_name("output")
                         .short("o")
@@ -131,8 +131,16 @@ fn main() {
                 nutexb_swizzle::try_get_image_format(sub_m.value_of("format").unwrap()).unwrap();
 
             // Allow manually overriding the image size.
-            let block_count: usize = match sub_m.value_of("blockcount") {
-                Some(v) => v.parse().unwrap(),
+            let block_count: usize = match sub_m.value_of("imagesize") {
+                Some(v) => {
+                    let image_size: usize = v.parse().unwrap();
+                    // TODO: Make this a shared function.
+                    match format {
+                        ImageFormat::Rgba8 => image_size / 4,
+                        ImageFormat::Bc1 => image_size / 8,
+                        ImageFormat::RgbaF32 | ImageFormat::Bc3 | ImageFormat::Bc7 => image_size / 16,
+                    }
+                }
                 None => match format {
                     ImageFormat::Rgba8 => width * height,
                     ImageFormat::RgbaF32 => width * height,
