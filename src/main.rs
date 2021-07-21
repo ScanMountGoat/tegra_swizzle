@@ -1,6 +1,6 @@
 use clap::{App, AppSettings, Arg, SubCommand};
-use nutexb_swizzle::{deswizzle, swizzle};
 use nutexb_swizzle::formats::ImageFormat;
+use nutexb_swizzle::{deswizzle, swizzle};
 use std::path::Path;
 use std::str::FromStr;
 
@@ -152,7 +152,35 @@ fn main() {
                         .help("The output CSV file")
                         .required(true)
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("normalize")
+                        .long("normalize")
+                        .help("Shift swizzled indices to start from 0")
+                        .required(false)
+                        .takes_value(false)
                 ),
+        )
+        .subcommand(
+            SubCommand::with_name("extract_mipmaps")
+                .about("Extracts mipmaps to separate files")
+                .arg(&format_arg)
+                .arg(
+                    Arg::with_name("input")
+                        .short("i")
+                        .long("input")
+                        .help("The input image data in DDS format")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .help("The base name of the outputs. Files will be named as <output>_<mip_number>.bin")
+                        .required(true)
+                        .takes_value(true),
+                )
         )
         .get_matches();
 
@@ -190,8 +218,17 @@ fn main() {
             let output = sub_m.value_of("output").unwrap();
             let format_text = sub_m.value_of("format").unwrap();
             let format = ImageFormat::from_str(format_text).unwrap();
+            let normalize_indices = sub_m.is_present("normalize");
 
-            nutexb_swizzle::write_lut_csv(swizzled_file, deswizzled_file, output, &format);
+            nutexb_swizzle::write_lut_csv(swizzled_file, deswizzled_file, output, &format, normalize_indices);
+        }
+        ("extract_mipmaps", Some(sub_m)) => {
+            let input = sub_m.value_of("input").unwrap();
+            let output = sub_m.value_of("output").unwrap();
+            let format_text = sub_m.value_of("format").unwrap();
+            let format = ImageFormat::from_str(format_text).unwrap();
+
+            nutexb_swizzle::extract_mipmaps(input, output, &format);
         }
         _ => (),
     }
@@ -207,7 +244,13 @@ fn calculate_swizzle(sub_m: &clap::ArgMatches) {
     calculate_swizzle_with_format(format, swizzled_file, deswizzled_file, width, height);
 }
 
-fn calculate_swizzle_with_format(format: ImageFormat, swizzled_file: &str, deswizzled_file: &str, width: usize, height: usize) {
+fn calculate_swizzle_with_format(
+    format: ImageFormat,
+    swizzled_file: &str,
+    deswizzled_file: &str,
+    width: usize,
+    height: usize,
+) {
     match format {
         ImageFormat::Rgba8 => nutexb_swizzle::print_swizzle_patterns::<u32, _>(
             swizzled_file,

@@ -1,11 +1,9 @@
 use ahash::AHashMap;
 use binread::prelude::*;
+use binwrite::{BinWrite, WriterOption};
 use formats::ImageFormat;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::{
-    io::{Cursor, Write},
-    path::Path,
-};
+use std::{fs::File, io::{BufWriter, Cursor, Write}, path::Path};
 
 use crate::swizzle::{swizzle_x_16, swizzle_x_8, swizzle_y_16, swizzle_y_8};
 
@@ -317,13 +315,14 @@ pub fn write_lut_csv<P: AsRef<Path>>(
     deswizzled_file: P,
     output_csv: P,
     format: &ImageFormat,
+    normalize_indices: bool
 ) {
     // TODO: Tile size should be an enum.
     // TODO: Associate block types with each variant?
     match format.get_tile_size_in_bytes() {
-        4 => write_lut_csv_inner::<u32, _>(swizzled_file, deswizzled_file, output_csv),
-        8 => write_lut_csv_inner::<u64, _>(swizzled_file, deswizzled_file, output_csv),
-        16 => write_lut_csv_inner::<u128, _>(swizzled_file, deswizzled_file, output_csv),
+        4 => write_lut_csv_inner::<u32, _>(swizzled_file, deswizzled_file, output_csv, normalize_indices),
+        8 => write_lut_csv_inner::<u64, _>(swizzled_file, deswizzled_file, output_csv, normalize_indices),
+        16 => write_lut_csv_inner::<u128, _>(swizzled_file, deswizzled_file, output_csv, normalize_indices),
         _ => (),
     }
 }
@@ -333,10 +332,20 @@ fn write_lut_csv_inner<T: LookupBlock, P: AsRef<Path>>(
     swizzled_file: P,
     deswizzled_file: P,
     output_csv: P,
+    normalize_indices: bool
 ) {
     let swizzled_data = read_blocks::<_, T>(&swizzled_file);
     let deswizzled_data = read_blocks::<_, T>(&deswizzled_file);
-    let swizzle_lut = create_swizzle_lut(&swizzled_data, &deswizzled_data);
+    let mut swizzle_lut = create_swizzle_lut(&swizzled_data, &deswizzled_data);
+
+    // Ensure indices start from 0.
+    if normalize_indices {
+        let (start_index, _) = get_mipmap_range(&swizzle_lut);
+        for val in swizzle_lut.iter_mut() {
+            *val -= start_index;
+        }
+    }
+
     let mut writer = csv::Writer::from_path(output_csv).unwrap();
     writer.serialize(("input_index", "swizzled_index")).unwrap();
     for (input, output) in swizzle_lut.iter().enumerate() {
@@ -475,3 +484,25 @@ pub fn create_nutexb<W: Write>(
     .unwrap();
 }
 
+pub fn extract_mipmaps(input: &str, output: &str, format: &ImageFormat) {
+    // TODO: Support nutexb as well.
+    // TODO: Is there a way to return a type?
+    match format {
+        &ImageFormat::Rgba8 => extract_mipmaps_innner::<u32>(input, output),
+        ImageFormat::RgbaF32 => extract_mipmaps_innner::<u128>(input, output),
+        ImageFormat::Bc1 => extract_mipmaps_innner::<u64>(input, output),
+        ImageFormat::Bc3 => extract_mipmaps_innner::<u128>(input, output),
+        ImageFormat::Bc7 => extract_mipmaps_innner::<u128>(input, output),
+    }
+}
+
+fn extract_mipmaps_innner<T: BinRead + BinWrite>(input: &str, output: &str) {
+    let mipmaps = read_mipmaps_dds::<_, T>(input);
+    for (i, mip) in mipmaps.into_iter().enumerate() {
+        let output_path = format!("{}_{}.bin", output, i);
+
+        // TODO: This will write with native endianness but the input is assumed to be little endian.
+        let mut file = BufWriter::new(File::create(output_path).unwrap());
+        mip.write(&mut file).unwrap();
+    }
+}
