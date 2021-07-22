@@ -195,6 +195,7 @@ fn main() {
         ("swizzle", Some(sub_m)) => {
             let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
             let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
+            warn_if_not_power_of_two(width, height);
             let input = sub_m.value_of("input").unwrap();
             let output = sub_m.value_of("output").unwrap();
             let format_text = sub_m.value_of("format").unwrap();
@@ -205,6 +206,7 @@ fn main() {
         ("deswizzle", Some(sub_m)) => {
             let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
             let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
+            warn_if_not_power_of_two(width, height);
             let input = sub_m.value_of("input").unwrap();
             let output = sub_m.value_of("output").unwrap();
             let format_text = sub_m.value_of("format").unwrap();
@@ -238,10 +240,17 @@ fn main() {
 fn calculate_swizzle(sub_m: &clap::ArgMatches) {
     let width: usize = sub_m.value_of("width").unwrap().parse().unwrap();
     let height: usize = sub_m.value_of("height").unwrap().parse().unwrap();
+    warn_if_not_power_of_two(width, height);
     let swizzled_file = sub_m.value_of("swizzled").unwrap();
     let deswizzled_file = sub_m.value_of("deswizzled").unwrap();
     let format = ImageFormat::from_str(sub_m.value_of("format").unwrap()).unwrap();
     calculate_swizzle_with_format(format, swizzled_file, deswizzled_file, width, height);
+}
+
+fn warn_if_not_power_of_two(width: usize, height: usize) {
+    if !width.is_power_of_two() || !height.is_power_of_two() {
+        eprintln!("Warning: Dimensions {}x{} are not powers of two. The operation assumes dimensions are powers of two.", width, height);
+    }
 }
 
 fn calculate_swizzle_with_format(
