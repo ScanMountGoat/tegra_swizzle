@@ -35,7 +35,7 @@ fn main() {
         .required(true)
         .takes_value(true);
 
-    let matches = App::new("nutexb_swizzle")
+    let matches = App::new("nutexb_swizzle_cli")
         .version("0.1")
         .author("SMG")
         .about("Reverse engineer texture swizzling from generated texture patterns.")
@@ -222,7 +222,13 @@ fn main() {
             let format = ImageFormat::from_str(format_text).unwrap();
             let normalize_indices = sub_m.is_present("normalize");
 
-            nutexb_swizzle::write_lut_csv(swizzled_file, deswizzled_file, output, &format, normalize_indices);
+            nutexb_swizzle::write_lut_csv(
+                swizzled_file,
+                deswizzled_file,
+                output,
+                &format,
+                normalize_indices,
+            );
         }
         ("extract_mipmaps", Some(sub_m)) => {
             let input = sub_m.value_of("input").unwrap();

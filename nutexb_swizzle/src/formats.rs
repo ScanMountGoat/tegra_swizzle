@@ -35,16 +35,16 @@ impl ImageFormat {
             ImageFormat::Bc3 | ImageFormat::Bc7 | ImageFormat::RgbaF32 => 16,
         }
     }
-    
-    /// Gets the number of tiles needed to represent the given dimensions. 
+
+    /// Gets the number of tiles needed to represent the given dimensions.
     /// Uncompressed formats are assumed to have single pixel tiles.
     pub const fn get_tile_count(&self, width: usize, height: usize) -> usize {
         // TODO: This should round up for non multiples of the tile size.
         let tile_dimension = self.get_tile_dimension();
         width * height / (tile_dimension * tile_dimension)
     }
-    
-    /// Gets the number of pixels for the width or height of a square tile. 
+
+    /// Gets the number of pixels for the width or height of a square tile.
     /// Uncompressed formats are assumed to have single pixel tiles.
     pub const fn get_tile_dimension(&self) -> usize {
         match self {
@@ -53,8 +53,6 @@ impl ImageFormat {
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -66,7 +64,10 @@ mod tests {
         assert_eq!(8, ImageFormat::get_tile_size_in_bytes(&ImageFormat::Bc1));
         assert_eq!(16, ImageFormat::get_tile_size_in_bytes(&ImageFormat::Bc3));
         assert_eq!(16, ImageFormat::get_tile_size_in_bytes(&ImageFormat::Bc7));
-        assert_eq!(16, ImageFormat::get_tile_size_in_bytes(&ImageFormat::RgbaF32));
+        assert_eq!(
+            16,
+            ImageFormat::get_tile_size_in_bytes(&ImageFormat::RgbaF32)
+        );
     }
 
     #[test]
@@ -75,7 +76,10 @@ mod tests {
         assert_eq!(5, ImageFormat::get_tile_count(&ImageFormat::Bc1, 5, 16));
         assert_eq!(5, ImageFormat::get_tile_count(&ImageFormat::Bc3, 5, 16));
         assert_eq!(5, ImageFormat::get_tile_count(&ImageFormat::Bc7, 5, 16));
-        assert_eq!(80, ImageFormat::get_tile_count(&ImageFormat::RgbaF32, 5, 16));
+        assert_eq!(
+            80,
+            ImageFormat::get_tile_count(&ImageFormat::RgbaF32, 5, 16)
+        );
     }
 
     #[test]
