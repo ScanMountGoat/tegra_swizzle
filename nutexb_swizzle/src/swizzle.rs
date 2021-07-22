@@ -160,8 +160,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_64_64() {
-        let input = include_bytes!("../swizzle_data/64_bc7_linear.bin");
-        let expected = include_bytes!("../swizzle_data/64_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/64_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/64_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 64 * 64];
 
         swizzle_experimental(
@@ -180,8 +180,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc1_128_128() {
-        let input = include_bytes!("../swizzle_data/128_bc1_linear.bin");
-        let expected = include_bytes!("../swizzle_data/128_bc1_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_bc1_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc1_linear_deswizzle.bin");
         let mut actual = vec![0u8; 128 * 128 / 16 * 8];
 
         swizzle_experimental(
@@ -200,8 +200,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc3_128_128() {
-        let input = include_bytes!("../swizzle_data/128_bc3_linear.bin");
-        let expected = include_bytes!("../swizzle_data/128_bc3_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_bc3_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc3_linear_deswizzle.bin");
         let mut actual = vec![0u8; 128 * 128];
 
         // BC3 has the same swizzle patterns as BC7.
@@ -221,8 +221,8 @@ mod tests {
 
     #[test]
     fn deswizzle_rgba_f32_128_128() {
-        let input = include_bytes!("../swizzle_data/128_rgbaf32_linear.bin");
-        let expected = include_bytes!("../swizzle_data/128_rgbaf32_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_rgbaf32_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_rgbaf32_linear_deswizzle.bin");
         let mut actual = vec![0u8; 128 * 128 * 16];
 
         // R32G32B32A32_FLOAT has the same swizzle patterns as BC7.
@@ -242,8 +242,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_128_128() {
-        let input = include_bytes!("../swizzle_data/128_bc7_linear.bin");
-        let expected = include_bytes!("../swizzle_data/128_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 128 * 128];
 
         swizzle_experimental(
@@ -262,8 +262,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_256_256() {
-        let input = include_bytes!("../swizzle_data/256_bc7_linear.bin");
-        let expected = include_bytes!("../swizzle_data/256_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/256_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/256_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 256 * 256];
 
         swizzle_experimental(
@@ -282,8 +282,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_512_512() {
-        let input = include_bytes!("../swizzle_data/512_bc7_linear.bin");
-        let expected = include_bytes!("../swizzle_data/512_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/512_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/512_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 512 * 512];
 
         swizzle_experimental(
@@ -302,8 +302,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_1024_1024() {
-        let input = include_bytes!("../swizzle_data/1024_bc7_linear.bin");
-        let expected = include_bytes!("../swizzle_data/1024_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/1024_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/1024_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 1024 * 1024];
 
         swizzle_experimental(

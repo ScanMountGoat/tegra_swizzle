@@ -1,9 +1,13 @@
 use ahash::AHashMap;
 use binread::prelude::*;
-use binwrite::{BinWrite, WriterOption};
+use binwrite::BinWrite;
 use formats::ImageFormat;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::{fs::File, io::{BufWriter, Cursor, Write}, path::Path};
+use std::{
+    fs::File,
+    io::{BufWriter, Cursor, Write},
+    path::Path,
+};
 
 use crate::swizzle::{swizzle_x_16, swizzle_x_8, swizzle_y_16, swizzle_y_8};
 
@@ -315,14 +319,29 @@ pub fn write_lut_csv<P: AsRef<Path>>(
     deswizzled_file: P,
     output_csv: P,
     format: &ImageFormat,
-    normalize_indices: bool
+    normalize_indices: bool,
 ) {
     // TODO: Tile size should be an enum.
     // TODO: Associate block types with each variant?
     match format.get_tile_size_in_bytes() {
-        4 => write_lut_csv_inner::<u32, _>(swizzled_file, deswizzled_file, output_csv, normalize_indices),
-        8 => write_lut_csv_inner::<u64, _>(swizzled_file, deswizzled_file, output_csv, normalize_indices),
-        16 => write_lut_csv_inner::<u128, _>(swizzled_file, deswizzled_file, output_csv, normalize_indices),
+        4 => write_lut_csv_inner::<u32, _>(
+            swizzled_file,
+            deswizzled_file,
+            output_csv,
+            normalize_indices,
+        ),
+        8 => write_lut_csv_inner::<u64, _>(
+            swizzled_file,
+            deswizzled_file,
+            output_csv,
+            normalize_indices,
+        ),
+        16 => write_lut_csv_inner::<u128, _>(
+            swizzled_file,
+            deswizzled_file,
+            output_csv,
+            normalize_indices,
+        ),
         _ => (),
     }
 }
@@ -332,7 +351,7 @@ fn write_lut_csv_inner<T: LookupBlock, P: AsRef<Path>>(
     swizzled_file: P,
     deswizzled_file: P,
     output_csv: P,
-    normalize_indices: bool
+    normalize_indices: bool,
 ) {
     let swizzled_data = read_blocks::<_, T>(&swizzled_file);
     let deswizzled_data = read_blocks::<_, T>(&deswizzled_file);
