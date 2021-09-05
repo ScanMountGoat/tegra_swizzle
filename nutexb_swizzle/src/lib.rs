@@ -32,48 +32,7 @@ pub fn swizzle_data(
     height: usize,
     format: &ImageFormat,
 ) -> Vec<u8> {
-    let width_in_blocks = width / 4;
-    let height_in_blocks = height / 4;
-
-    let tile_size = format.get_tile_size_in_bytes();
-
-    let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
-    // TODO: Support other formats.
-    match format {
-        ImageFormat::Rgba8 => {}
-        ImageFormat::Bc1 => swizzle::swizzle_experimental(
-            swizzle_x_8,
-            swizzle_y_8,
-            width_in_blocks,
-            height_in_blocks,
-            &input_data,
-            &mut output_data[..],
-            false,
-            tile_size,
-        ),
-        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
-            swizzle_x_16,
-            swizzle_y_16,
-            width_in_blocks,
-            height_in_blocks,
-            &input_data,
-            &mut output_data[..],
-            false,
-            tile_size,
-        ),
-        ImageFormat::RgbaF32 => swizzle::swizzle_experimental(
-            swizzle_x_16,
-            swizzle_y_16,
-            width,
-            height,
-            &input_data,
-            &mut output_data[..],
-            false,
-            tile_size,
-        ),
-    }
-
-    output_data
+    swizzle_data_inner(input_data, width, height, format, false)
 }
 
 pub fn swizzle<P: AsRef<Path>>(
@@ -98,50 +57,7 @@ pub fn deswizzle_data(
     height: usize,
     format: &ImageFormat,
 ) -> Vec<u8> {
-    // TODO: This isn't correct for RGBA.
-    let width_in_blocks = width / format.get_tile_dimension();
-    let height_in_blocks = height / format.get_tile_dimension();
-
-    let tile_size = format.get_tile_size_in_bytes();
-
-    let mut output_data = vec![0u8; width_in_blocks * height_in_blocks * tile_size];
-    // TODO: Support other formats.
-    match format {
-        // TODO: This can just be based on block size rather than image format.
-        ImageFormat::Rgba8 => {}
-        ImageFormat::Bc1 => swizzle::swizzle_experimental(
-            swizzle_x_8,
-            swizzle_y_8,
-            width_in_blocks,
-            height_in_blocks,
-            &input_data,
-            &mut output_data[..],
-            true,
-            tile_size,
-        ),
-        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental(
-            swizzle_x_16,
-            swizzle_y_16,
-            width_in_blocks,
-            height_in_blocks,
-            &input_data,
-            &mut output_data[..],
-            true,
-            tile_size,
-        ),
-        ImageFormat::RgbaF32 => swizzle::swizzle_experimental(
-            swizzle_x_16,
-            swizzle_y_16,
-            width,
-            height,
-            &input_data,
-            &mut output_data[..],
-            true,
-            tile_size,
-        ),
-    }
-
-    output_data
+    swizzle_data_inner(input_data, width, height, format, true)
 }
 
 // TODO: Avoid repetitive code.
@@ -159,6 +75,52 @@ pub fn deswizzle<P: AsRef<Path>>(
     for value in output_data {
         writer.write_all(&value.to_le_bytes()).unwrap();
     }
+}
+
+pub fn swizzle_data_inner(
+    input_data: &[u8],
+    width: usize,
+    height: usize,
+    format: &ImageFormat,
+    deswizzle: bool,
+) -> Vec<u8> {
+    // TODO: This isn't correct for RGBA.
+    let width_in_tiles = width / format.get_tile_dimension();
+    let height_in_tiles = height / format.get_tile_dimension();
+
+    let tile_size = format.get_tile_size_in_bytes();
+
+    let mut output_data = vec![0u8; width_in_tiles * height_in_tiles * tile_size];
+    // TODO: Support other formats.
+    match format {
+        ImageFormat::Rgba8 => {}
+        ImageFormat::Bc1 => swizzle::swizzle_experimental2(
+            width_in_tiles,
+            height_in_tiles,
+            &input_data,
+            &mut output_data[..],
+            deswizzle,
+            tile_size,
+        ),
+        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental2(
+            width_in_tiles,
+            height_in_tiles,
+            &input_data,
+            &mut output_data[..],
+            deswizzle,
+            tile_size,
+        ),
+        ImageFormat::RgbaF32 => swizzle::swizzle_experimental2(
+            width,
+            height,
+            &input_data,
+            &mut output_data[..],
+            deswizzle,
+            tile_size,
+        ),
+    }
+
+    output_data
 }
 
 fn read_vec<T: BinRead, R: BinReaderExt>(reader: &mut R) -> Vec<T> {
@@ -235,7 +197,7 @@ fn create_swizzle_lut<T: LookupBlock>(swizzled: &[T], deswizzled: &[T]) -> Vec<i
 pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
     for i in 0..pixel_count as u32 {
         // Use the linear address to create unique pixel values.
-        writer.write_all(&i.to_le_bytes()).unwrap();
+        writer.write_all(&(i / 128).to_le_bytes()).unwrap();
     }
 }
 

@@ -122,16 +122,35 @@ fn get_address(
     gob_address + gob_offset
 }
 
-// TODO: Is it possible to calculate block height.
-fn swizzle_experimental2(
+
+fn calculate_block_height(height: usize) -> usize {
+    // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
+    let block_height = height / 8;
+    // 0 1 2 3 4 5 6 7 8 9 10 11    12    13 14 15 16
+
+    // TODO: Is it correct to find the closest power of two?
+    match block_height {
+        0..=1 => 1,
+        2 => 2,
+        3..=4 => 4,
+        5..=12 => 8,
+        // TODO: The TRM mentions 32 also works?
+        _ => 16,
+    }
+}
+
+pub fn swizzle_experimental2(
     width: usize,
     height: usize,
-    block_height: usize,
     source: &[u8],
     destination: &mut [u8],
     deswizzle: bool,
     bytes_per_pixel: usize,
 ) {
+    // TODO: Is it possible to calculate block height?
+    // This doesn't seem to work for 320x320 BC7.
+    let block_height = calculate_block_height(height);
+
     // TODO: Round up?
     let image_width_in_gobs = width * bytes_per_pixel / 64;
 
@@ -255,7 +274,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/128_bc1_linear_deswizzle.bin");
         let mut actual = vec![0u8; 128 * 128 / 16 * 8];
 
-        swizzle_experimental2(128 / 4, 128 / 4, 4, input, &mut actual, true, 8);
+        swizzle_experimental2(128 / 4, 128 / 4, input, &mut actual, true, 8);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -267,7 +286,7 @@ mod tests {
         let mut actual = vec![0u8; 128 * 128];
 
         // BC3 has the same swizzle patterns as BC7.
-        swizzle_experimental2(128 / 4, 128 / 4, 4, input, &mut actual, true, 16);
+        swizzle_experimental2(128 / 4, 128 / 4, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -279,7 +298,7 @@ mod tests {
         let mut actual = vec![0u8; 128 * 128 * 16];
 
         // R32G32B32A32_FLOAT has the same swizzle patterns as BC7.
-        swizzle_experimental2(128, 128, 16, input, &mut actual, true, 16);
+        swizzle_experimental2(128, 128, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -290,7 +309,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/128_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 128 * 128];
 
-        swizzle_experimental2(128 / 4, 128 / 4, 4, input, &mut actual, true, 16);
+        swizzle_experimental2(128 / 4, 128 / 4, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -301,7 +320,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/256_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 256 * 256];
 
-        swizzle_experimental2(256 / 4, 256 / 4, 8, input, &mut actual, true, 16);
+        swizzle_experimental2(256 / 4, 256 / 4, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -312,7 +331,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/320_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 320 * 320];
 
-        swizzle_experimental2(320 / 4, 320 / 4, 8, input, &mut actual, true, 16);
+        swizzle_experimental2(320 / 4, 320 / 4, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -323,7 +342,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/512_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 512 * 512];
 
-        swizzle_experimental2(512 / 4, 512 / 4, 16, input, &mut actual, true, 16);
+        swizzle_experimental2(512 / 4, 512 / 4, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
