@@ -1,489 +1,386 @@
-use ahash::AHashMap;
-use binread::prelude::*;
-use binwrite::BinWrite;
-use formats::ImageFormat;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::{
-    fs::File,
-    io::{BufWriter, Cursor, Write},
-    path::Path,
-};
-
-use crate::swizzle::{swizzle_x_16, swizzle_x_8, swizzle_y_16, swizzle_y_8};
-
-pub mod formats;
-mod nutexb;
-mod swizzle;
-
-/// The necessary trait bounds for types that can be used for swizzle calculation functions.
-/// The [u32], [u64], and [u128] types implement the necessary traits and can be used to represent block sizes of 4, 8, and 16 bytes, respectively.
-pub trait LookupBlock:
-    BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash
-{
-}
-impl<T: BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Hash> LookupBlock
-    for T
-{
-}
-
-pub fn swizzle_data(
-    input_data: &[u8],
+// Width and height are calculated as width/4 and height/4 for BCN compression.
+// TODO: Is this even more performant for power of two sizes?
+fn swizzle_experimental<F: Fn(u32, u32) -> u32, G: Fn(u32, u32) -> u32>(
+    swizzle_x: F,
+    swizzle_y: G,
     width: usize,
     height: usize,
-    format: &ImageFormat,
-) -> Vec<u8> {
-    swizzle_data_inner(input_data, width, height, format, false)
-}
-
-pub fn swizzle<P: AsRef<Path>>(
-    input: P,
-    output: P,
-    width: usize,
-    height: usize,
-    format: &ImageFormat,
-) {
-    let input_data = std::fs::read(input).unwrap();
-    let output_data = swizzle_data(&input_data, width, height, format);
-
-    let mut writer = std::fs::File::create(output).unwrap();
-    for value in output_data {
-        writer.write_all(&value.to_le_bytes()).unwrap();
-    }
-}
-
-pub fn deswizzle_data(
-    input_data: &[u8],
-    width: usize,
-    height: usize,
-    format: &ImageFormat,
-) -> Vec<u8> {
-    swizzle_data_inner(input_data, width, height, format, true)
-}
-
-// TODO: Avoid repetitive code.
-pub fn deswizzle<P: AsRef<Path>>(
-    input: P,
-    output: P,
-    width: usize,
-    height: usize,
-    format: &ImageFormat,
-) {
-    let input_data = std::fs::read(input).unwrap();
-    let output_data = deswizzle_data(&input_data, width, height, format);
-
-    let mut writer = std::fs::File::create(output).unwrap();
-    for value in output_data {
-        writer.write_all(&value.to_le_bytes()).unwrap();
-    }
-}
-
-pub fn swizzle_data_inner(
-    input_data: &[u8],
-    width: usize,
-    height: usize,
-    format: &ImageFormat,
+    source: &[u8],
+    destination: &mut [u8],
     deswizzle: bool,
-) -> Vec<u8> {
-    // TODO: This isn't correct for RGBA.
-    let width_in_tiles = width / format.get_tile_dimension();
-    let height_in_tiles = height / format.get_tile_dimension();
+    bytes_per_copy: usize,
+) {
+    // The bit masking trick to increment the offset is taken from here:
+    // https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/
+    // The masks allow "skipping over" certain bits when incrementing.
+    let mut offset_x = 0i32;
+    let mut offset_y = 0i32;
 
-    let tile_size = format.get_tile_size_in_bytes();
+    // TODO: Is the cast to i32 always safe?
+    let x_mask = swizzle_x(width as u32, height as u32) as i32;
+    let y_mask = swizzle_y(width as u32, height as u32) as i32;
 
-    let mut output_data = vec![0u8; width_in_tiles * height_in_tiles * tile_size];
-    // TODO: Support other formats.
-    match format {
-        ImageFormat::Rgba8 => {}
-        ImageFormat::Bc1 => swizzle::swizzle_experimental2(
-            width_in_tiles,
-            height_in_tiles,
-            &input_data,
-            &mut output_data[..],
-            deswizzle,
-            tile_size,
-        ),
-        ImageFormat::Bc3 | ImageFormat::Bc7 => swizzle::swizzle_experimental2(
-            width_in_tiles,
-            height_in_tiles,
-            &input_data,
-            &mut output_data[..],
-            deswizzle,
-            tile_size,
-        ),
-        ImageFormat::RgbaF32 => swizzle::swizzle_experimental2(
-            width,
-            height,
-            &input_data,
-            &mut output_data[..],
-            deswizzle,
-            tile_size,
-        ),
-    }
+    let mut dst = 0;
+    // TODO: This works for 3d textures as well by iterating over depth in the outermost loop.
+    for _ in 0..height {
+        for _ in 0..width {
+            // The bit patterns don't overlap, so just sum the offsets.
+            let src = (offset_x + offset_y) as usize;
 
-    output_data
-}
+            // Swap the offets for swizzling or deswizzling.
+            // TODO: The condition doesn't need to be in the inner loop.
+            // TODO: Have an inner function and swap the source/destination arguments in the outer function?
+            if deswizzle {
+                (&mut destination[dst..dst + bytes_per_copy])
+                    .copy_from_slice(&source[src..src + bytes_per_copy]);
+            } else {
+                (&mut destination[src..src + bytes_per_copy])
+                    .copy_from_slice(&source[dst..dst + bytes_per_copy]);
+            }
 
-fn read_vec<T: BinRead, R: BinReaderExt>(reader: &mut R) -> Vec<T> {
-    let mut result = Vec::new();
-    while let Ok(block) = reader.read_le::<T>() {
-        result.push(block);
-    }
-    result
-}
-
-fn read_blocks<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<T> {
-    let mut raw = Cursor::new(std::fs::read(path).unwrap());
-    read_vec(&mut raw)
-}
-
-fn read_mipmaps_dds<P: AsRef<Path>, T: BinRead>(path: P) -> Vec<Vec<T>> {
-    let mut reader = std::fs::File::open(path).unwrap();
-    let dds = ddsfile::Dds::read(&mut reader).unwrap();
-
-    // Each mip level is 4x smaller than the previous level.
-    let mut mip_offset = 0;
-    let mut mip_size = dds.get_main_texture_size().unwrap() as usize;
-    let min_mipmap_size = dds.get_min_mipmap_size_in_bytes() as usize;
-
-    let mut mip_data = Vec::new();
-    for _ in 0..dds.get_num_mipmap_levels() {
-        let mut reader = Cursor::new(&dds.data[mip_offset..mip_offset + mip_size]);
-        let blocks = read_vec(&mut reader);
-        mip_data.push(blocks);
-
-        // Some compressed formats have a minimum size.
-        mip_offset += std::cmp::max(mip_size, min_mipmap_size);
-        mip_size /= 4;
-    }
-
-    mip_data
-}
-
-fn create_deswizzle_luts<T: LookupBlock>(
-    linear_mipmaps: &[Vec<T>],
-    deswizzled_mipmaps: &[Vec<T>],
-) -> Vec<Vec<i64>> {
-    let mut luts = Vec::new();
-
-    for (linear_mip, deswizzled_mip) in deswizzled_mipmaps.iter().zip(linear_mipmaps) {
-        let mip_lut = create_swizzle_lut(linear_mip, deswizzled_mip);
-        luts.push(mip_lut);
-    }
-
-    luts
-}
-
-fn create_swizzle_lut<T: LookupBlock>(swizzled: &[T], deswizzled: &[T]) -> Vec<i64> {
-    // For each deswizzled output block index, find the corresponding input block index.
-    // The lookup table allows for iterating the input lists only once for an O(n) running time.
-    let mut swizzled_index_by_block = AHashMap::with_capacity(swizzled.len());
-    for (i, value) in swizzled.iter().enumerate() {
-        swizzled_index_by_block.insert(value, i);
-    }
-
-    // The resulting LUT finds the index after swizzling for a given input index.
-    deswizzled
-        .par_iter()
-        .map(|block| {
-            swizzled_index_by_block
-                .get(block)
-                .map(|i| *i as i64)
-                .unwrap_or(-1)
-        })
-        .collect()
-}
-
-// TODO: Return result?
-pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
-    for i in 0..pixel_count as u32 {
-        // Use the linear address to create unique pixel values.
-        writer.write_all(&(i / 128).to_le_bytes()).unwrap();
+            // Use the 2's complement identity (offset + !mask + 1 == offset - mask).
+            offset_x = (offset_x - x_mask) & x_mask;
+            dst += bytes_per_copy;
+        }
+        offset_y = (offset_y - y_mask) & y_mask;
     }
 }
 
-pub fn write_rgba_f32_lut<W: Write>(writer: &mut W, pixel_count: usize) {
-    for i in 0..pixel_count {
-        // Use the linear address to create unique pixel values.
-        // Writing the index directly would result in values being clipped to 0f32.
-        // TODO: This only works up to 16777216.
-        // TODO: Flip sign bit for larger values?
-        writer.write_all(&(i as f32).to_le_bytes()).unwrap();
-        writer.write_all(&0f32.to_le_bytes()).unwrap();
-        writer.write_all(&0f32.to_le_bytes()).unwrap();
-        writer.write_all(&0f32.to_le_bytes()).unwrap();
+fn swizzle_x_16(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    // Left shift by 4 bits since tiles or pixels are 16 bytes.
+    if width_in_blocks <= 2 {
+        return 0b1 << 4;
+    }
+
+    let x = !0 >> (width_in_blocks.leading_zeros() + 1);
+    let max_shift = std::cmp::min(32 - height_in_blocks.leading_zeros() - 1, 7);
+    let result = ((x & 0x1) << 1) | ((x & 0x2) << 3) | ((x & (!0 << 2)) << max_shift);
+    result << 4
+}
+
+fn swizzle_y_16(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    // Left shift by 4 bits since tiles or pixels are 16 bytes.
+    if height_in_blocks <= 2 {
+        return 0b10 << 4;
+    }
+
+    // TODO: This only works up to 256x256.
+    let y = !0 >> (height_in_blocks.leading_zeros() + 1);
+    let result = (y & 0x1) | ((y & 0x6) << 1) | ((y & 0x78) << 2) | ((y & 0x80) << 8);
+    result << 4
+}
+
+fn swizzle_x_8(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    // Left shift by 3 bits since tiles are 8 bytes.
+    let x = !0 >> (width_in_blocks.leading_zeros() + 1);
+    let result = (x & 0x1)
+        | ((x & 0x2) << 1)
+        | ((x & 0x4) << 3)
+        | ((x & (!0 << 3)) << (32 - height_in_blocks.leading_zeros() - 1));
+    result << 3
+}
+
+fn swizzle_y_8(_width_in_blocks: u32, height_in_blocks: u32) -> u32 {
+    // Left shift by 3 bits since tiles or pixels are 8 bytes.
+    // TODO: This only works up to 128x128.
+    let y = !0 >> (height_in_blocks.leading_zeros() + 1);
+    let result = ((y & 0x1) << 1) | ((y & 0x6) << 2) | ((y & 0x78) << 3);
+    result << 3
+}
+
+// Code taken from examples in Tegra TRM page 1187.
+fn get_gob_address(
+    x: usize,
+    y: usize,
+    block_height: usize,
+    image_width_in_gobs: usize,
+    bytes_per_pixel: usize,
+) -> usize {
+    // TODO: Optimize this?
+    (y / (8 * block_height)) * 512 * block_height * image_width_in_gobs
+        + (x * bytes_per_pixel / 64) * 512 * block_height
+        + (y % (8 * block_height) / 8) * 512
+}
+
+// Code taken from examples in Tegra TRM page 1188.
+// The function has been modified slightly to account for bytes per pixel or compressed tile.
+// x, y are byte indices for the 2d pixel grid.
+// The returned value is the offset into the gob where the byte is stored.
+fn get_gob_offset(x: usize, y: usize) -> usize {
+    // TODO: Optimize this to use a lookup table based on x%64 and y%8?
+    // TODO: Can a macro generate this lookup?
+    ((x % 64) / 32) * 256 + ((y % 8) / 2) * 64 + ((x % 32) / 16) * 32 + (y % 2) * 16 + (x % 16)
+}
+
+fn get_address(
+    x: usize,
+    y: usize,
+    block_height: usize,
+    image_width_in_gobs: usize,
+    bytes_per_pixel: usize,
+) -> usize {
+    let gob_address = get_gob_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
+    let gob_offset = get_gob_offset(x * bytes_per_pixel, y);
+    gob_address + gob_offset
+}
+
+fn get_block_height(height: usize) -> usize {
+    // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
+    let block_height = height / 8;
+    // 0 1 2 3 4 5 6 7 8 9 10 11    12    13 14 15 16
+
+    // TODO: Is it correct to find the closest power of two?
+    match block_height {
+        0..=1 => 1,
+        2 => 2,
+        3..=4 => 4,
+        5..=12 => 8,
+        // TODO: The TRM mentions 32 also works?
+        _ => 16,
     }
 }
 
-pub fn write_bc7_lut<W: Write>(writer: &mut W, block_count: usize) {
-    for i in 0..block_count as u64 {
-        // Create 128 bits of unique BC7 data.
-        // We just need unique blocks rather than unique pixel colors.
-        writer.write_all(&0u32.to_le_bytes()).unwrap();
-        writer.write_all(&i.to_le_bytes()).unwrap();
-        writer.write_all(&2u32.to_le_bytes()).unwrap();
-    }
-}
+// TODO: Avoid panics?
 
-pub fn write_bc3_lut<W: Write>(writer: &mut W, block_count: usize) {
-    for i in 0..block_count as u64 {
-        // Create 128 bits of unique BC3 data.
-        // We just need unique blocks rather than unique pixel colors.
-        writer.write_all(&65535u64.to_le_bytes()).unwrap();
-        writer.write_all(&i.to_le_bytes()).unwrap();
-    }
-}
-
-pub fn write_bc1_lut<W: Write>(writer: &mut W, block_count: usize) {
-    for i in 0..block_count as u32 {
-        // Create 64 bits of unique BC1 data.
-        // We just need unique blocks rather than unique pixel colors.
-        writer.write_all(&0u32.to_le_bytes()).unwrap();
-        writer.write_all(&i.to_le_bytes()).unwrap();
-    }
-}
-
-fn get_swizzle_patterns_output(
-    deswizzle_lut: &[i64],
+// TODO: Add another option with a specified block height (use an enum)?
+// TODO: Add an option to automatically calculate the output size?
+/// Swizzles the bytes in `source` to `destination`.
+/// `source` is expected to have at least `width * height * bytes_per_pixel` many bytes.
+/// # Panics
+/// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes 
+/// for the given parameters.
+pub fn swizzle_block_linear(
     width: usize,
     height: usize,
-    tile_dimension: usize,
-) -> String {
-    if width == 0 || height == 0 || deswizzle_lut.is_empty() {
-        return String::new();
-    }
-
-    let width_in_tiles = width / tile_dimension;
-    let height_in_tiles = height / tile_dimension;
-
-    let x_pattern_index = if width_in_tiles > 1 {
-        width_in_tiles - 1
-    } else {
-        0
-    };
-    let y_pattern_index = if height_in_tiles > 1 {
-        width_in_tiles * (height_in_tiles - 1)
-    } else {
-        0
-    };
-
-    return format!(
-        "width: {:?}, height: {:?}\nx: {:032b}\ny: {:032b}",
-        width, height, deswizzle_lut[x_pattern_index], deswizzle_lut[y_pattern_index]
-    );
-}
-
-fn get_mipmap_range(lut: &[i64]) -> (i64, i64) {
-    (*lut.iter().min().unwrap(), *lut.iter().max().unwrap())
-}
-
-pub fn write_lut_csv<P: AsRef<Path>>(
-    swizzled_file: P,
-    deswizzled_file: P,
-    output_csv: P,
-    format: &ImageFormat,
-    normalize_indices: bool,
+    source: &[u8],
+    destination: &mut [u8],
+    bytes_per_pixel: usize,
 ) {
-    // TODO: Tile size should be an enum.
-    // TODO: Associate block types with each variant?
-    match format.get_tile_size_in_bytes() {
-        4 => write_lut_csv_inner::<u32, _>(
-            swizzled_file,
-            deswizzled_file,
-            output_csv,
-            normalize_indices,
-        ),
-        8 => write_lut_csv_inner::<u64, _>(
-            swizzled_file,
-            deswizzled_file,
-            output_csv,
-            normalize_indices,
-        ),
-        16 => write_lut_csv_inner::<u128, _>(
-            swizzled_file,
-            deswizzled_file,
-            output_csv,
-            normalize_indices,
-        ),
-        _ => (),
-    }
-}
+    let block_height = get_block_height(height);
+    let image_width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
 
-// TODO: Handle errors.
-fn write_lut_csv_inner<T: LookupBlock, P: AsRef<Path>>(
-    swizzled_file: P,
-    deswizzled_file: P,
-    output_csv: P,
-    normalize_indices: bool,
-) {
-    let swizzled_data = read_blocks::<_, T>(&swizzled_file);
-    let deswizzled_data = read_blocks::<_, T>(&deswizzled_file);
-    let mut swizzle_lut = create_swizzle_lut(&swizzled_data, &deswizzled_data);
+    // TODO: Extend this to work with depth as well.
+    for y in 0..height {
+        for x in 0..width {
+            // The bit patterns don't overlap, so just sum the offsets.
+            let src = get_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
+            let dst = (y * width + x) * bytes_per_pixel;
 
-    // Ensure indices start from 0.
-    if normalize_indices {
-        let (start_index, _) = get_mipmap_range(&swizzle_lut);
-        for val in swizzle_lut.iter_mut() {
-            *val -= start_index;
-        }
-    }
-
-    let mut writer = csv::Writer::from_path(output_csv).unwrap();
-    writer.serialize(("input_index", "swizzled_index")).unwrap();
-    for (input, output) in swizzle_lut.iter().enumerate() {
-        writer.serialize((input, output)).unwrap();
-    }
-}
-
-pub fn print_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
-    swizzled_file: P,
-    deswizzled_file: P,
-    width: usize,
-    height: usize,
-    format: &ImageFormat,
-) {
-    let swizzled_mipmaps = match std::path::Path::new(swizzled_file.as_ref())
-        .extension()
-        .unwrap()
-        .to_str()
-        .unwrap()
-    {
-        "dds" => read_mipmaps_dds(&swizzled_file),
-        _ => vec![read_blocks::<_, T>(&swizzled_file)],
-    };
-
-    let deswizzled_mipmaps = match std::path::Path::new(deswizzled_file.as_ref())
-        .extension()
-        .unwrap()
-        .to_str()
-        .unwrap()
-    {
-        "dds" => read_mipmaps_dds(&deswizzled_file),
-        _ => vec![read_blocks::<_, T>(&deswizzled_file)],
-    };
-
-    // TODO: There is a lot of repetition for these two conditions.
-    if swizzled_mipmaps.len() == 1 && deswizzled_mipmaps.len() > 1 {
-        // Associate each mipmap with its mip level to avoid having to use enumerate with rayon.
-        let deswizzled_mipmaps: Vec<_> = deswizzled_mipmaps.iter().enumerate().collect();
-
-        // The mipmaps can now be computed independently.
-        // Collect will ensure the outputs are still displayed in the expected order.
-        let mip_outputs: Vec<_> = deswizzled_mipmaps
-            .par_iter()
-            .map(|(i, mip)| {
-                // TODO: Is this necessary for all formats?
-                let mip_width = width / (2usize.pow(*i as u32));
-                let mip_height = height / (2usize.pow(*i as u32));
-                if mip_width < 4 || mip_height < 4 {
-                    return String::new();
-                }
-
-                // Assume the input blocks cover all mip levels.
-                // This allows for calculating mip offsets and sizes based on the range of block indices.
-                let mut mip_lut = create_swizzle_lut(&swizzled_mipmaps[0], &mip);
-                let (start_index, end_index) = get_mipmap_range(&mip_lut);
-
-                // For the swizzle patterns, assume the swizzling starts from the mipmap offset.
-                for val in mip_lut.iter_mut() {
-                    *val -= start_index;
-                }
-
-                let tile_dimension = format.get_tile_dimension();
-                let swizzle_output =
-                    get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension);
-
-                format!(
-                    "Start Index: {:?}\nEnd Index: {:?}\n{}\n",
-                    start_index, end_index, swizzle_output
-                )
-            })
-            .collect();
-
-        for output in mip_outputs {
-            println!("{}", output);
-        }
-    } else {
-        // Compare both mipmaps.
-        let mip_luts = create_deswizzle_luts(&swizzled_mipmaps, &deswizzled_mipmaps);
-        let mip_luts: Vec<_> = mip_luts.iter().enumerate().collect();
-        // TODO: This can also be done in parallel.
-        let mip_outputs: Vec<_> = mip_luts
-            .iter()
-            .map(|(i, mip_lut)| {
-                // TODO: Is this necessary for all formats?
-                let mip_width = width / (2usize.pow(*i as u32));
-                let mip_height = height / (2usize.pow(*i as u32));
-                if mip_width < 4 || mip_height < 4 {
-                    return String::new();
-                }
-
-                let tile_dimension = format.get_tile_dimension();
-
-                get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension)
-            })
-            .collect();
-
-        for output in mip_outputs {
-            println!("{}", output);
+            // Swap the offets for swizzling or deswizzling.
+            // TODO: The condition doesn't need to be in the inner loop.
+            // TODO: Have an inner function and swap the source/destination arguments in the outer function?
+            (&mut destination[src..src + bytes_per_pixel])
+                .copy_from_slice(&source[dst..dst + bytes_per_pixel]);
         }
     }
 }
 
-pub fn create_nutexb<W: Write>(
-    writer: &mut W,
+// TODO: Add an option to automatically calculate the output size?
+/// Deswizzles the bytes in `source` to `destination`.
+/// `destination` is expected to have at least `width * height * bytes_per_pixel` many bytes.
+/// Swizzling and then deswizzling or deswizzling and then swizzling leaves the input unchanged.
+/// # Panics
+/// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes 
+/// for the given parameters.
+pub fn deswizzle_block_linear(
     width: usize,
     height: usize,
-    name: &str,
-    format: &ImageFormat,
-    block_count: usize,
+    source: &[u8],
+    destination: &mut [u8],
+    bytes_per_pixel: usize,
 ) {
-    let nutexb_format = match format {
-        ImageFormat::Rgba8 => 0,
-        ImageFormat::Bc1 => 128,
-        ImageFormat::Bc3 => 160,
-        ImageFormat::Bc7 => 224,
-        ImageFormat::RgbaF32 => 52,
-    };
+    let block_height = get_block_height(height);
+    let image_width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
 
-    let mut buffer = Cursor::new(Vec::new());
-    match format {
-        ImageFormat::Rgba8 => write_rgba_lut(&mut buffer, block_count),
-        ImageFormat::Bc1 => write_bc1_lut(&mut buffer, block_count),
-        ImageFormat::Bc3 => write_bc3_lut(&mut buffer, block_count),
-        ImageFormat::Bc7 => write_bc7_lut(&mut buffer, block_count),
-        ImageFormat::RgbaF32 => write_rgba_f32_lut(&mut buffer, block_count),
-    }
+    // TODO: Extend this to work with depth as well.
+    for y in 0..height {
+        for x in 0..width {
+            // The bit patterns don't overlap, so just sum the offsets.
+            let src = get_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
+            let dst = (y * width + x) * bytes_per_pixel;
 
-    nutexb::write_nutexb_from_data(
-        writer,
-        buffer.get_ref(),
-        width as u32,
-        height as u32,
-        name,
-        nutexb_format,
-    )
-    .unwrap();
-}
-
-pub fn extract_mipmaps(input: &str, output: &str, format: &ImageFormat) {
-    // TODO: Support nutexb as well.
-    // TODO: Is there a way to return a type?
-    match format {
-        &ImageFormat::Rgba8 => extract_mipmaps_innner::<u32>(input, output),
-        ImageFormat::RgbaF32 => extract_mipmaps_innner::<u128>(input, output),
-        ImageFormat::Bc1 => extract_mipmaps_innner::<u64>(input, output),
-        ImageFormat::Bc3 => extract_mipmaps_innner::<u128>(input, output),
-        ImageFormat::Bc7 => extract_mipmaps_innner::<u128>(input, output),
+            (&mut destination[dst..dst + bytes_per_pixel])
+                .copy_from_slice(&source[src..src + bytes_per_pixel]);
+        }
     }
 }
 
-fn extract_mipmaps_innner<T: BinRead + BinWrite>(input: &str, output: &str) {
-    let mipmaps = read_mipmaps_dds::<_, T>(input);
-    for (i, mip) in mipmaps.into_iter().enumerate() {
-        let output_path = format!("{}_{}.bin", output, i);
+fn get_width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
+    // TODO: Round up?
+    width * bytes_per_pixel / 64
+}
 
-        // TODO: This will write with native endianness but the input is assumed to be little endian.
-        let mut file = BufWriter::new(File::create(output_path).unwrap());
-        mip.write(&mut file).unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn swizzle_x_16_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
+
+        // These are left shifted by 4 since tiles are 16 bytes.
+        let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
+        test_swizzle(0b10000, swizzle_x_16(8 / 4, 8 / 4));
+        test_swizzle(0b100100000, swizzle_x_16(16 / 4, 16 / 4));
+        test_swizzle(0b1100100000, swizzle_x_16(32 / 4, 32 / 4));
+        test_swizzle(0b110100100000, swizzle_x_16(64 / 4, 64 / 4));
+        test_swizzle(0b11100100100000, swizzle_x_16(128 / 4, 128 / 4));
+        test_swizzle(0b1111000100100000, swizzle_x_16(256 / 4, 256 / 4));
+        test_swizzle(0b111110000100100000, swizzle_x_16(512 / 4, 512 / 4));
+        test_swizzle(0b1111110000100100000, swizzle_x_16(1024 / 4, 1024 / 4));
+        test_swizzle(0b11111110000100100000, swizzle_x_16(2048 / 4, 2048 / 4));
+        // TODO: Fix these test cases.
+        test_swizzle(0b111111100000001110000, swizzle_x_16(4096 / 4, 4096 / 4));
+    }
+
+    #[test]
+    #[ignore]
+    fn swizzle_y_16_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
+        // These are left shifted by 4 since tiles are 16 bytes.
+        let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
+        test_swizzle(0b100000, swizzle_y_16(8 / 4, 8 / 4));
+        test_swizzle(0b1010000, swizzle_y_16(16 / 4, 16 / 4));
+        test_swizzle(0b11010000, swizzle_y_16(32 / 4, 32 / 4));
+        test_swizzle(0b1011010000, swizzle_y_16(64 / 4, 64 / 4));
+        test_swizzle(0b11011010000, swizzle_y_16(128 / 4, 128 / 4));
+        test_swizzle(0b111011010000, swizzle_y_16(256 / 4, 256 / 4));
+        test_swizzle(0b1111011010000, swizzle_y_16(512 / 4, 512 / 4));
+        test_swizzle(0b10000001111011010000, swizzle_y_16(1024 / 4, 1024 / 4));
+        // TODO: Fix these test cases.
+        test_swizzle(0b1100000001111011010000, swizzle_x_16(2048 / 4, 2048 / 4));
+        test_swizzle(0b111000000011111110000000, swizzle_x_16(4096 / 4, 4096 / 4));
+    }
+
+    #[test]
+    fn swizzle_x_8_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
+
+        // These are left shifted by 3 since tiles are 8 bytes.
+        let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
+        test_swizzle(0b1000, swizzle_x_8(8 / 4, 8 / 4));
+        test_swizzle(0b101000, swizzle_x_8(16 / 4, 16 / 4));
+        test_swizzle(0b100101000, swizzle_x_8(32 / 4, 32 / 4));
+        test_swizzle(0b10100101000, swizzle_x_8(64 / 4, 64 / 4));
+        test_swizzle(0b1100100101000, swizzle_x_8(128 / 4, 128 / 4));
+        test_swizzle(0b111000100101000, swizzle_x_8(256 / 4, 256 / 4));
+        test_swizzle(0b11110000100101000, swizzle_x_8(512 / 4, 512 / 4));
+    }
+
+    #[test]
+    fn swizzle_y_8_power2() {
+        // TODO: Investigate sizes smaller than 16x16.
+
+        // These are left shifted by 3 since tiles are 8 bytes.
+        let test_swizzle = |a, b| assert_eq!(a, b, "{:b} != {:b}", a, b);
+        test_swizzle(0b10000, swizzle_y_8(8 / 4, 8 / 4));
+        test_swizzle(0b1010000, swizzle_y_8(16 / 4, 16 / 4));
+        test_swizzle(0b11010000, swizzle_y_8(32 / 4, 32 / 4));
+        test_swizzle(0b1011010000, swizzle_y_8(64 / 4, 64 / 4));
+        test_swizzle(0b11011010000, swizzle_y_8(128 / 4, 128 / 4));
+        test_swizzle(0b111011010000, swizzle_y_8(256 / 4, 256 / 4));
+        test_swizzle(0b1111011010000, swizzle_y_8(512 / 4, 512 / 4));
+    }
+
+    #[test]
+    fn deswizzle_bc7_64_64() {
+        let input = include_bytes!("../../swizzle_data/64_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/64_bc7_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 64 * 64];
+
+        deswizzle_block_linear(64 / 4, 64 / 4, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc1_128_128() {
+        let input = include_bytes!("../../swizzle_data/128_bc1_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc1_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 128 * 128 / 16 * 8];
+
+        deswizzle_block_linear(128 / 4, 128 / 4, input, &mut actual, 8);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc3_128_128() {
+        let input = include_bytes!("../../swizzle_data/128_bc3_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc3_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 128 * 128];
+
+        // BC3 has the same swizzle patterns as BC7.
+        deswizzle_block_linear(128 / 4, 128 / 4, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_rgba_f32_128_128() {
+        let input = include_bytes!("../../swizzle_data/128_rgbaf32_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_rgbaf32_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 128 * 128 * 16];
+
+        // R32G32B32A32_FLOAT has the same swizzle patterns as BC7.
+        deswizzle_block_linear(128, 128, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc7_128_128() {
+        let input = include_bytes!("../../swizzle_data/128_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc7_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 128 * 128];
+
+        deswizzle_block_linear(128 / 4, 128 / 4, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc7_256_256() {
+        let input = include_bytes!("../../swizzle_data/256_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/256_bc7_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 256 * 256];
+
+        deswizzle_block_linear(256 / 4, 256 / 4, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc7_320_320() {
+        let input = include_bytes!("../../swizzle_data/320_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/320_bc7_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 320 * 320];
+
+        deswizzle_block_linear(320 / 4, 320 / 4, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc7_512_512() {
+        let input = include_bytes!("../../swizzle_data/512_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/512_bc7_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 512 * 512];
+
+        deswizzle_block_linear(512 / 4, 512 / 4, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_bc7_1024_1024() {
+        let input = include_bytes!("../../swizzle_data/1024_bc7_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/1024_bc7_linear_deswizzle.bin");
+        let mut actual = vec![0u8; 1024 * 1024];
+
+        deswizzle_block_linear(1024 / 4, 1024 / 4, input, &mut actual, 16);
+
+        assert_eq!(expected, &actual[..]);
     }
 }
