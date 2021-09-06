@@ -36,31 +36,14 @@ pub fn swizzle_data(
     let tile_size = format.get_tile_size_in_bytes();
 
     let mut output_data = vec![0u8; width_in_tiles * height_in_tiles * tile_size];
-    // TODO: Support other formats.
-    match format {
-        ImageFormat::Rgba8 => {}
-        ImageFormat::Bc1 => nutexb_swizzle::swizzle_block_linear(
-            width_in_tiles,
-            height_in_tiles,
-            &input_data,
-            &mut output_data[..],
-            tile_size,
-        ),
-        ImageFormat::Bc3 | ImageFormat::Bc7 => nutexb_swizzle::swizzle_block_linear(
-            width_in_tiles,
-            height_in_tiles,
-            &input_data,
-            &mut output_data[..],
-            tile_size,
-        ),
-        ImageFormat::RgbaF32 => nutexb_swizzle::swizzle_block_linear(
-            width,
-            height,
-            &input_data,
-            &mut output_data[..],
-            tile_size,
-        ),
-    }
+
+    nutexb_swizzle::swizzle_block_linear(
+        width_in_tiles,
+        height_in_tiles,
+        &input_data,
+        &mut output_data[..],
+        tile_size,
+    );
 
     output_data
 }
@@ -94,31 +77,14 @@ pub fn deswizzle_data(
     let tile_size = format.get_tile_size_in_bytes();
 
     let mut output_data = vec![0u8; width_in_tiles * height_in_tiles * tile_size];
-    // TODO: Support other formats.
-    match format {
-        ImageFormat::Rgba8 => {}
-        ImageFormat::Bc1 => nutexb_swizzle::deswizzle_block_linear(
-            width_in_tiles,
-            height_in_tiles,
-            &input_data,
-            &mut output_data[..],
-            tile_size,
-        ),
-        ImageFormat::Bc3 | ImageFormat::Bc7 => nutexb_swizzle::deswizzle_block_linear(
-            width_in_tiles,
-            height_in_tiles,
-            &input_data,
-            &mut output_data[..],
-            tile_size,
-        ),
-        ImageFormat::RgbaF32 => nutexb_swizzle::deswizzle_block_linear(
-            width,
-            height,
-            &input_data,
-            &mut output_data[..],
-            tile_size,
-        ),
-    }
+
+    nutexb_swizzle::deswizzle_block_linear(
+        width_in_tiles,
+        height_in_tiles,
+        &input_data,
+        &mut output_data[..],
+        tile_size,
+    );
 
     output_data
 }

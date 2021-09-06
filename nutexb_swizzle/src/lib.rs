@@ -130,20 +130,40 @@ fn get_address(
     gob_address + gob_offset
 }
 
+// TODO: Add a function to calculate surface size by rounding up to blocks (1 x block_height gobs).
+// This can be used to calculate the needed dimensions so swizzle deswizzle can simply return the output array.
+// For FFI, it will be easier to pass in existing memory of the appropriate size.
+// Add surface size calculation to FFI?
+// TODO: Make this public?
+fn get_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usize {
+    let width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
+    let block_height = get_block_height(height);
+    // TODO: Make gob width and gob height constants?
+    let height_in_blocks = div_round_up(height, block_height * 8);
+    width_in_gobs * height_in_blocks * block_height * 512
+}
+
 fn get_block_height(height: usize) -> usize {
     // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
     let block_height = height / 8;
-    // 0 1 2 3 4 5 6 7 8 9 10 11    12    13 14 15 16
 
     // TODO: Is it correct to find the closest power of two?
     match block_height {
         0..=1 => 1,
         2 => 2,
         3..=4 => 4,
-        5..=12 => 8,
+        5..=11 => 8,
         // TODO: The TRM mentions 32 also works?
         _ => 16,
     }
+}
+
+fn div_round_up(x: usize, d: usize) -> usize {
+    (x + d - 1) / d
+}
+
+fn get_width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
+    div_round_up(width * bytes_per_pixel, 64)
 }
 
 // TODO: Avoid panics?
@@ -213,6 +233,15 @@ pub mod ffi {
 
         super::deswizzle_block_linear(width, height, source, destination, bytes_per_pixel)
     }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn get_surface_size(
+        width: usize,
+        height: usize,
+        bytes_per_pixel: usize,
+    ) -> usize {
+        super::get_surface_size(width, height, bytes_per_pixel)
+    }
 }
 
 // TODO: Add an option to automatically calculate the output size?
@@ -243,11 +272,6 @@ pub fn deswizzle_block_linear(
                 .copy_from_slice(&source[src..src + bytes_per_pixel]);
         }
     }
-}
-
-fn get_width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
-    // TODO: Round up?
-    width * bytes_per_pixel / 64
 }
 
 #[cfg(test)]
@@ -427,5 +451,32 @@ mod tests {
         deswizzle_block_linear(1024 / 4, 1024 / 4, input, &mut actual, 16);
 
         assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn width_in_gobs_block16() {
+        assert_eq!(20, get_width_in_gobs(320 / 4, 16));
+    }
+
+    #[test]
+    fn block_heighs() {
+        assert_eq!(8, get_block_height(64));
+
+        // BCN Tiles.
+        assert_eq!(16, get_block_height(768 / 4));
+        assert_eq!(16, get_block_height(384 / 4));
+    }
+
+    // TODO: Does block height change for each mip?
+    #[test]
+    fn surface_sizes_block4() {
+        assert_eq!(1048576, get_surface_size(512, 512, 4));
+    }
+
+    #[test]
+    fn surface_sizes_block16() {
+        assert_eq!(163840, get_surface_size(320 / 4, 320 / 4, 16));
+        assert_eq!(40960, get_surface_size(160 / 4, 160 / 4, 16));
+        assert_eq!(1024, get_surface_size(32 / 4, 32 / 4, 16));
     }
 }
