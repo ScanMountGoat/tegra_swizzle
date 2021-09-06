@@ -135,7 +135,7 @@ fn get_address(
 // For FFI, it will be easier to pass in existing memory of the appropriate size.
 // Add surface size calculation to FFI?
 // TODO: Make this public?
-fn get_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usize {
+pub fn get_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usize {
     let width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
     let block_height = get_block_height(height);
     // TODO: Make gob width and gob height constants?
@@ -145,7 +145,7 @@ fn get_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usiz
 
 fn get_block_height(height: usize) -> usize {
     // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
-    let block_height = height / 8;
+    let block_height = div_round_up(height, 8);
 
     // TODO: Is it correct to find the closest power of two?
     match block_height {
@@ -459,12 +459,15 @@ mod tests {
     }
 
     #[test]
-    fn block_heighs() {
+    fn block_heights() {
         assert_eq!(8, get_block_height(64));
 
         // BCN Tiles.
         assert_eq!(16, get_block_height(768 / 4));
         assert_eq!(16, get_block_height(384 / 4));
+        assert_eq!(16, get_block_height(384 / 4));
+        assert_eq!(8, get_block_height(320 / 4));
+        assert_eq!(4, get_block_height(80 / 4));
     }
 
     // TODO: Does block height change for each mip?
