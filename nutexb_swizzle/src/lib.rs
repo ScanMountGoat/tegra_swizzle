@@ -1,4 +1,5 @@
-#![no_std]
+// #![no_std]
+// TODO: We don't need std since the core crate can provide the necessary memcpy operation.
 
 // Width and height are calculated as width/4 and height/4 for BCN compression.
 // TODO: Is this even more performant for power of two sizes?
@@ -177,6 +178,40 @@ pub fn swizzle_block_linear(
             (&mut destination[src..src + bytes_per_pixel])
                 .copy_from_slice(&source[dst..dst + bytes_per_pixel]);
         }
+    }
+}
+
+pub mod ffi {
+    #[no_mangle]
+    pub unsafe extern "C" fn swizzle_block_linear(
+        width: usize,
+        height: usize,
+        source: *const u8,
+        source_len: usize,
+        destination: *mut u8,
+        destination_len: usize,
+        bytes_per_pixel: usize,
+    ) {
+        let source = std::slice::from_raw_parts(source, source_len);
+        let destination = std::slice::from_raw_parts_mut(destination, destination_len);
+
+        super::swizzle_block_linear(width, height, source, destination, bytes_per_pixel)
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn deswizzle_block_linear(
+        width: usize,
+        height: usize,
+        source: *const u8,
+        source_len: usize,
+        destination: *mut u8,
+        destination_len: usize,
+        bytes_per_pixel: usize,
+    ) {
+        let source = std::slice::from_raw_parts(source, source_len);
+        let destination = std::slice::from_raw_parts_mut(destination, destination_len);
+
+        super::deswizzle_block_linear(width, height, source, destination, bytes_per_pixel)
     }
 }
 
