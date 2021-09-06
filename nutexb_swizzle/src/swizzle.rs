@@ -1,4 +1,5 @@
 // Width and height are calculated as width/4 and height/4 for BCN compression.
+// TODO: Is this even more performant for power of two sizes?
 pub fn swizzle_experimental<F: Fn(u32, u32) -> u32, G: Fn(u32, u32) -> u32>(
     swizzle_x: F,
     swizzle_y: G,
@@ -106,7 +107,8 @@ fn get_gob_address(
 // x, y are byte indices for the 2d pixel grid.
 // The returned value is the offset into the gob where the byte is stored.
 fn get_gob_offset(x: usize, y: usize) -> usize {
-    // TODO: Optimize this?
+    // TODO: Optimize this to use a lookup table based on x%64 and y%8?
+    // TODO: Can a macro generate this lookup?
     ((x % 64) / 32) * 256 + ((y % 8) / 2) * 64 + ((x % 32) / 16) * 32 + (y % 2) * 16 + (x % 16)
 }
 
@@ -121,7 +123,6 @@ fn get_address(
     let gob_offset = get_gob_offset(x * bytes_per_pixel, y);
     gob_address + gob_offset
 }
-
 
 fn calculate_block_height(height: usize) -> usize {
     // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
@@ -139,6 +140,7 @@ fn calculate_block_height(height: usize) -> usize {
     }
 }
 
+// TODO: Add another option with a specified block height (use an enum)?
 pub fn swizzle_experimental2(
     width: usize,
     height: usize,
@@ -147,8 +149,6 @@ pub fn swizzle_experimental2(
     deswizzle: bool,
     bytes_per_pixel: usize,
 ) {
-    // TODO: Is it possible to calculate block height?
-    // This doesn't seem to work for 320x320 BC7.
     let block_height = calculate_block_height(height);
 
     // TODO: Round up?
@@ -254,16 +254,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/64_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 64 * 64];
 
-        swizzle_experimental(
-            swizzle_x_16,
-            swizzle_y_16,
-            64 / 4,
-            64 / 4,
-            input,
-            &mut actual,
-            true,
-            16,
-        );
+        swizzle_experimental2(64 / 4, 64 / 4, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -353,16 +344,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/1024_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 1024 * 1024];
 
-        swizzle_experimental(
-            swizzle_x_16,
-            swizzle_y_16,
-            1024 / 4,
-            1024 / 4,
-            input,
-            &mut actual,
-            true,
-            16,
-        );
+        swizzle_experimental2(1024 / 4, 1024 / 4, input, &mut actual, true, 16);
 
         assert_eq!(expected, &actual[..]);
     }
