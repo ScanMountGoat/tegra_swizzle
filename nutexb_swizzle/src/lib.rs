@@ -1,3 +1,5 @@
+#![no_std]
+
 // Width and height are calculated as width/4 and height/4 for BCN compression.
 // TODO: Is this even more performant for power of two sizes?
 fn swizzle_experimental<F: Fn(u32, u32) -> u32, G: Fn(u32, u32) -> u32>(
@@ -53,7 +55,10 @@ fn swizzle_x_16(width_in_blocks: u32, height_in_blocks: u32) -> u32 {
     }
 
     let x = !0 >> (width_in_blocks.leading_zeros() + 1);
-    let max_shift = std::cmp::min(32 - height_in_blocks.leading_zeros() - 1, 7);
+    let mut max_shift = 32 - height_in_blocks.leading_zeros() - 1;
+    if max_shift > 7 {
+        max_shift = 7;
+    }
     let result = ((x & 0x1) << 1) | ((x & 0x2) << 3) | ((x & (!0 << 2)) << max_shift);
     result << 4
 }
@@ -147,7 +152,7 @@ fn get_block_height(height: usize) -> usize {
 /// Swizzles the bytes in `source` to `destination`.
 /// `source` is expected to have at least `width * height * bytes_per_pixel` many bytes.
 /// # Panics
-/// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes 
+/// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes
 /// for the given parameters.
 pub fn swizzle_block_linear(
     width: usize,
@@ -180,7 +185,7 @@ pub fn swizzle_block_linear(
 /// `destination` is expected to have at least `width * height * bytes_per_pixel` many bytes.
 /// Swizzling and then deswizzling or deswizzling and then swizzling leaves the input unchanged.
 /// # Panics
-/// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes 
+/// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes
 /// for the given parameters.
 pub fn deswizzle_block_linear(
     width: usize,
@@ -213,6 +218,11 @@ fn get_width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(test)]
+    extern crate std;
+
+    use std::vec;
 
     #[test]
     #[ignore]
