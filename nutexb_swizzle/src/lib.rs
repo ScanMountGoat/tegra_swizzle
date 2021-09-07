@@ -42,15 +42,39 @@ fn get_address(
 // For FFI, it will be easier to pass in existing memory of the appropriate size.
 // Add surface size calculation to FFI?
 // TODO: Make this public?
+
+/// Calculates the size in bytes for the swizzled data for the given dimensions 
+/// as `width_in_blocks * height_in_blocks * bytes_per_block`. 
+/// Each block is composed of one or more GOBs (groups of 64x8 bytes).
+/// The swizzled surface size will be at least as large as the deswizzled size of `width * height * bytes_per_pixel`.
 pub fn get_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usize {
     let width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
+    // TODO: Should block height be a parameter?
     let block_height = get_block_height(height);
     // TODO: Make gob width and gob height constants?
     let height_in_blocks = div_round_up(height, block_height * 8);
     width_in_gobs * height_in_blocks * block_height * 512
 }
 
-fn get_block_height(height: usize) -> usize {
+/// Gets the height of each block in GOBs for the specified `height`.
+/// For formats that compress multiple pixels into a single tile, divide the height in pixels by the tile height.
+/// # Examples
+///
+/// Non compressed formats can typically just use the height in pixels.
+/**
+```rust
+let height_in_pixels = 512;
+assert_eq!(16, nutexb_swizzle::get_block_height(height_in_pixels));
+```
+*/
+/// BCN formats work in 4x4 tiles instead of pixels, so divide the height by 4 since each tile is 4 pixels high.
+/**
+```rust
+let height_in_pixels = 512;
+assert_eq!(16, nutexb_swizzle::get_block_height(height_in_pixels/4));
+```
+*/
+pub fn get_block_height(height: usize) -> usize {
     // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
     let block_height = div_round_up(height, 8);
 
@@ -87,9 +111,9 @@ pub fn swizzle_block_linear(
     height: usize,
     source: &[u8],
     destination: &mut [u8],
+    block_height: usize,
     bytes_per_pixel: usize,
 ) {
-    let block_height = get_block_height(height);
     let image_width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
 
     // TODO: Extend this to work with depth as well.
@@ -117,12 +141,20 @@ pub mod ffi {
         source_len: usize,
         destination: *mut u8,
         destination_len: usize,
+        block_height: usize,
         bytes_per_pixel: usize,
     ) {
         let source = std::slice::from_raw_parts(source, source_len);
         let destination = std::slice::from_raw_parts_mut(destination, destination_len);
 
-        super::swizzle_block_linear(width, height, source, destination, bytes_per_pixel)
+        super::swizzle_block_linear(
+            width,
+            height,
+            source,
+            destination,
+            block_height,
+            bytes_per_pixel,
+        )
     }
 
     #[no_mangle]
@@ -142,12 +174,17 @@ pub mod ffi {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn get_surface_size(
+    pub extern "C" fn get_surface_size(
         width: usize,
         height: usize,
         bytes_per_pixel: usize,
     ) -> usize {
         super::get_surface_size(width, height, bytes_per_pixel)
+    }
+
+    #[no_mangle]
+    pub extern "C" fn get_block_height(height: usize) -> usize {
+        super::get_block_height(height)
     }
 }
 

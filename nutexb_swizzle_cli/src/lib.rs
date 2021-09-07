@@ -37,11 +37,14 @@ pub fn swizzle_data(
 
     let mut output_data = vec![0u8; width_in_tiles * height_in_tiles * tile_size];
 
+    let block_height = nutexb_swizzle::get_block_height(height_in_tiles);
+
     nutexb_swizzle::swizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
         &input_data,
         &mut output_data[..],
+        block_height,
         tile_size,
     );
 
