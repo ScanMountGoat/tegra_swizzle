@@ -30,19 +30,19 @@ pub fn swizzle_data(
     format: &ImageFormat,
 ) -> Vec<u8> {
     // TODO: This isn't correct for RGBA.
-    let width_in_tiles = width / format.get_tile_dimension();
-    let height_in_tiles = height / format.get_tile_dimension();
+    let width_in_tiles = width / format.tile_dimension();
+    let height_in_tiles = height / format.tile_dimension();
 
-    let tile_size = format.get_tile_size_in_bytes();
+    let tile_size = format.tile_size_in_bytes();
 
     let mut output_data = vec![0u8; width_in_tiles * height_in_tiles * tile_size];
 
-    let block_height = nutexb_swizzle::get_block_height(height_in_tiles);
+    let block_height = nutexb_swizzle::block_height(height_in_tiles);
 
     nutexb_swizzle::swizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
-        &input_data,
+        input_data,
         &mut output_data[..],
         block_height,
         tile_size,
@@ -74,19 +74,19 @@ pub fn deswizzle_data(
     format: &ImageFormat,
 ) -> Vec<u8> {
     // TODO: This isn't correct for RGBA.
-    let width_in_tiles = width / format.get_tile_dimension();
-    let height_in_tiles = height / format.get_tile_dimension();
+    let width_in_tiles = width / format.tile_dimension();
+    let height_in_tiles = height / format.tile_dimension();
 
-    let tile_size = format.get_tile_size_in_bytes();
+    let tile_size = format.tile_size_in_bytes();
 
     let mut output_data = vec![0u8; width_in_tiles * height_in_tiles * tile_size];
 
-    let block_height = nutexb_swizzle::get_block_height(height_in_tiles);
+    let block_height = nutexb_swizzle::block_height(height_in_tiles);
 
     nutexb_swizzle::deswizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
-        &input_data,
+        input_data,
         &mut output_data[..],
         block_height,
         tile_size,
@@ -261,7 +261,7 @@ fn get_swizzle_patterns_output(
     );
 }
 
-fn get_mipmap_range(lut: &[i64]) -> (i64, i64) {
+fn mipmap_range(lut: &[i64]) -> (i64, i64) {
     (*lut.iter().min().unwrap(), *lut.iter().max().unwrap())
 }
 
@@ -274,7 +274,7 @@ pub fn write_lut_csv<P: AsRef<Path>>(
 ) {
     // TODO: Tile size should be an enum.
     // TODO: Associate block types with each variant?
-    match format.get_tile_size_in_bytes() {
+    match format.tile_size_in_bytes() {
         4 => write_lut_csv_inner::<u32, _>(
             swizzled_file,
             deswizzled_file,
@@ -310,7 +310,7 @@ fn write_lut_csv_inner<T: LookupBlock, P: AsRef<Path>>(
 
     // Ensure indices start from 0.
     if normalize_indices {
-        let (start_index, _) = get_mipmap_range(&swizzle_lut);
+        let (start_index, _) = mipmap_range(&swizzle_lut);
         for val in swizzle_lut.iter_mut() {
             *val -= start_index;
         }
@@ -369,15 +369,15 @@ pub fn print_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
 
                 // Assume the input blocks cover all mip levels.
                 // This allows for calculating mip offsets and sizes based on the range of block indices.
-                let mut mip_lut = create_swizzle_lut(&swizzled_mipmaps[0], &mip);
-                let (start_index, end_index) = get_mipmap_range(&mip_lut);
+                let mut mip_lut = create_swizzle_lut(&swizzled_mipmaps[0], mip);
+                let (start_index, end_index) = mipmap_range(&mip_lut);
 
                 // For the swizzle patterns, assume the swizzling starts from the mipmap offset.
                 for val in mip_lut.iter_mut() {
                     *val -= start_index;
                 }
 
-                let tile_dimension = format.get_tile_dimension();
+                let tile_dimension = format.tile_dimension();
                 let swizzle_output =
                     get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension);
 
@@ -406,9 +406,9 @@ pub fn print_swizzle_patterns<T: LookupBlock, P: AsRef<Path>>(
                     return String::new();
                 }
 
-                let tile_dimension = format.get_tile_dimension();
+                let tile_dimension = format.tile_dimension();
 
-                get_swizzle_patterns_output(&mip_lut, mip_width, mip_height, tile_dimension)
+                get_swizzle_patterns_output(mip_lut, mip_width, mip_height, tile_dimension)
             })
             .collect();
 

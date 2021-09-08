@@ -1,8 +1,24 @@
+//! Functions for swizzling and deswizzling texture data for the Tegra X1's block linear format.
+//! Block linear arranges bytes of a texture surface into a 2D grid of blocks. 
+//! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
+//! The `block_height` parameter determines how many GOBs stack vertically to form a block.
+//!
+//! Blocks are arranged linearly in row-major order. Each block has a width of 1 GOB and a height of `block_height` many GOBs.
+//!
+//! Pixels or 4x4 pixel tiles for BCN compressed formats are arranged horizontally to form a row of `width_in_pixels * bytes_per_pixel` many bytes
+//! or `width_in_pixels / 4 * bytes_per_tile` many bytes.
+//! The surface width is rounded up to the width in blocks or 64 bytes (one GOB).
+//!
+//! The height of the surface is `height_in_pixels` many bytes for most formats and 
+//! `height_in_pixels / 4` many bytes for BCN compressed formats since the tiles are arranged horizontally within the row.
+//! The surface height is rounded up to the height in blocks or `block_height * 8` bytes.
+
 // #![no_std]
 // TODO: We don't need std since the core crate can provide the necessary memcpy operation.
 
 // Code taken from examples in Tegra TRM page 1187.
-fn get_gob_address(
+// Return the starting address of the GOB containing the pixel at location (x, y).
+fn gob_address(
     x: usize,
     y: usize,
     block_height: usize,
@@ -16,24 +32,27 @@ fn get_gob_address(
 }
 
 // Code taken from examples in Tegra TRM page 1188.
-// The function has been modified slightly to account for bytes per pixel or compressed tile.
-// x, y are byte indices for the 2d pixel grid.
-// The returned value is the offset into the gob where the byte is stored.
-fn get_gob_offset(x: usize, y: usize) -> usize {
-    // TODO: Optimize this to use a lookup table based on x%64 and y%8?
-    // TODO: Can a macro generate this lookup?
+// Return the offset within the GOB for the byte at location (x, y).
+fn gob_offset(x: usize, y: usize) -> usize {
+    // TODO: Optimize this?
     ((x % 64) / 32) * 256 + ((y % 8) / 2) * 64 + ((x % 32) / 16) * 32 + (y % 2) * 16 + (x % 16)
 }
 
-fn get_address(
+// Given pixel coordinates (x, y), find the offset in the swizzled image data.
+// This can be used for swizzling and deswizzling operations.
+fn swizzled_address(
     x: usize,
     y: usize,
     block_height: usize,
     image_width_in_gobs: usize,
     bytes_per_pixel: usize,
 ) -> usize {
-    let gob_address = get_gob_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
-    let gob_offset = get_gob_offset(x * bytes_per_pixel, y);
+    let gob_address = gob_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
+
+    // Multiply by bytes_per_pixel since this function expects byte coordinates.
+    // We assume 1 byte per row, so y is left unchanged.
+    let gob_offset = gob_offset(x * bytes_per_pixel, y);
+
     gob_address + gob_offset
 }
 
@@ -41,19 +60,25 @@ fn get_address(
 // This can be used to calculate the needed dimensions so swizzle deswizzle can simply return the output array.
 // For FFI, it will be easier to pass in existing memory of the appropriate size.
 // Add surface size calculation to FFI?
-// TODO: Make this public?
 
-/// Calculates the size in bytes for the swizzled data for the given dimensions
-/// as `width_in_blocks * height_in_blocks * bytes_per_block`.
-/// Each block is composed of one or more GOBs (groups of 64x8 bytes).
-/// The swizzled surface size will be at least as large as the deswizzled size of `width * height * bytes_per_pixel`.
-pub fn get_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usize {
-    let width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
-    // TODO: Should block height be a parameter?
-    let block_height = get_block_height(height);
+/// Calculates the size in bytes for the swizzled data for the given dimensions for the block linear format.
+/// The result of [swizzled_surface_size] will always be at least as large as [deswizzled_surface_size].
+pub fn swizzled_surface_size(
+    width: usize,
+    height: usize,
+    block_height: usize,
+    bytes_per_pixel: usize,
+) -> usize {
+    let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
     // TODO: Make gob width and gob height constants?
     let height_in_blocks = div_round_up(height, block_height * 8);
     width_in_gobs * height_in_blocks * block_height * 512
+}
+
+/// Calculates the size in bytes for the deswizzled data for the given dimensions.
+/// Compare with [swizzled_surface_size].
+pub fn deswizzled_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usize {
+    width * height * bytes_per_pixel
 }
 
 /// Gets the height of each block in GOBs for the specified `height`.
@@ -64,17 +89,17 @@ pub fn get_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> 
 /**
 ```rust
 let height_in_pixels = 512;
-assert_eq!(16, nutexb_swizzle::get_block_height(height_in_pixels));
+assert_eq!(16, nutexb_swizzle::block_height(height_in_pixels));
 ```
 */
 /// BCN formats work in 4x4 tiles instead of pixels, so divide the height by 4 since each tile is 4 pixels high.
 /**
 ```rust
 let height_in_pixels = 512;
-assert_eq!(16, nutexb_swizzle::get_block_height(height_in_pixels/4));
+assert_eq!(16, nutexb_swizzle::block_height(height_in_pixels / 4));
 ```
 */
-pub fn get_block_height(height: usize) -> usize {
+pub fn block_height(height: usize) -> usize {
     // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
     let block_height = div_round_up(height, 8);
 
@@ -93,7 +118,7 @@ fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
 }
 
-fn get_width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
+fn width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
     div_round_up(width * bytes_per_pixel, 64)
 }
 
@@ -101,7 +126,8 @@ fn get_width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
 
 // TODO: Add another option with a specified block height (use an enum)?
 // TODO: Add an option to automatically calculate the output size?
-/// Swizzles the bytes in `source` to `destination`.
+
+/// Swizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
 /// `source` is expected to have at least `width * height * bytes_per_pixel` many bytes.
 /// # Panics
 /// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes
@@ -114,13 +140,13 @@ pub fn swizzle_block_linear(
     block_height: usize,
     bytes_per_pixel: usize,
 ) {
-    let image_width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
+    let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
 
     // TODO: Extend this to work with depth as well.
     for y in 0..height {
         for x in 0..width {
             // The bit patterns don't overlap, so just sum the offsets.
-            let src = get_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
+            let src = swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
             let dst = (y * width + x) * bytes_per_pixel;
 
             // Swap the offets for swizzling or deswizzling.
@@ -132,7 +158,45 @@ pub fn swizzle_block_linear(
     }
 }
 
+// TODO: Add an option to automatically calculate the output size?
+// TODO: Return a result instead to make this more robust?
+// TODO: Use fuzz testing to test for panics.
+
+/// Deswizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
+/// # Panics
+/// Panics on out of bounds accesses for `source` or `destination`.
+/// `source` is expected to have at least as many bytes as the result of [swizzled_surface_size].
+/// `destination` is expected to have at least as many bytes as the result of [deswizzled_surface_size].
+pub fn deswizzle_block_linear(
+    width: usize,
+    height: usize,
+    source: &[u8],
+    destination: &mut [u8],
+    block_height: usize,
+    bytes_per_pixel: usize,
+) {
+    let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
+
+    // TODO: Extend this to work with depth as well.
+    for y in 0..height {
+        for x in 0..width {
+            // The bit patterns don't overlap, so just sum the offsets.
+            let src = swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
+            let dst = (y * width + x) * bytes_per_pixel;
+
+            (&mut destination[dst..dst + bytes_per_pixel])
+                .copy_from_slice(&source[src..src + bytes_per_pixel]);
+        }
+    }
+}
+
 pub mod ffi {
+    // TODO: Add another function for correctly calculating the deswizzled size and show a code example.
+    // TODO: Show that BCN need width and height divided by 4.
+    /// Swizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
+    /// # Safety
+    /// `source` and `source_len` should refer to an array with at least as many bytes as the result of [deswizzled_surface_size].
+    /// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [swizzled_surface_size].
     #[no_mangle]
     pub unsafe extern "C" fn swizzle_block_linear(
         width: usize,
@@ -144,6 +208,7 @@ pub mod ffi {
         block_height: usize,
         bytes_per_pixel: usize,
     ) {
+        // TODO: Assert that the lengths are correct?
         let source = std::slice::from_raw_parts(source, source_len);
         let destination = std::slice::from_raw_parts_mut(destination, destination_len);
 
@@ -157,6 +222,10 @@ pub mod ffi {
         )
     }
 
+    /// Deswizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
+    /// # Safety
+    /// `source` and `source_len` should refer to an array with at least as many bytes as the result of [swizzled_surface_size].
+    /// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [deswizzled_surface_size].
     #[no_mangle]
     pub unsafe extern "C" fn deswizzle_block_linear(
         width: usize,
@@ -181,48 +250,31 @@ pub mod ffi {
         )
     }
 
+    /// See [swizzled_surface_size](super::swizzled_surface_size).
     #[no_mangle]
-    pub extern "C" fn get_surface_size(
+    pub extern "C" fn swizzled_surface_size(
+        width: usize,
+        height: usize,
+        block_height: usize,
+        bytes_per_pixel: usize,
+    ) -> usize {
+        super::swizzled_surface_size(width, height, block_height, bytes_per_pixel)
+    }
+
+    /// See [deswizzled_surface_size](super::deswizzled_surface_size).
+    #[no_mangle]
+    pub extern "C" fn deswizzled_surface_size(
         width: usize,
         height: usize,
         bytes_per_pixel: usize,
     ) -> usize {
-        super::get_surface_size(width, height, bytes_per_pixel)
+        super::deswizzled_surface_size(width, height, bytes_per_pixel)
     }
 
+    /// See [block_height](super::block_height).
     #[no_mangle]
-    pub extern "C" fn get_block_height(height: usize) -> usize {
-        super::get_block_height(height)
-    }
-}
-
-// TODO: Add an option to automatically calculate the output size?
-/// Deswizzles the bytes in `source` to `destination`.
-/// `destination` is expected to have at least `width * height * bytes_per_pixel` many bytes.
-/// Swizzling and then deswizzling or deswizzling and then swizzling leaves the input unchanged.
-/// # Panics
-/// Panics on out of bounds accesses for `source` or `destination`. This occurs when `source` or `destination` contain too few bytes
-/// for the given parameters.
-pub fn deswizzle_block_linear(
-    width: usize,
-    height: usize,
-    source: &[u8],
-    destination: &mut [u8],
-    block_height: usize,
-    bytes_per_pixel: usize,
-) {
-    let image_width_in_gobs = get_width_in_gobs(width, bytes_per_pixel);
-
-    // TODO: Extend this to work with depth as well.
-    for y in 0..height {
-        for x in 0..width {
-            // The bit patterns don't overlap, so just sum the offsets.
-            let src = get_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
-            let dst = (y * width + x) * bytes_per_pixel;
-
-            (&mut destination[dst..dst + bytes_per_pixel])
-                .copy_from_slice(&source[src..src + bytes_per_pixel]);
-        }
+    pub extern "C" fn block_height(height: usize) -> usize {
+        super::block_height(height)
     }
 }
 
@@ -236,14 +288,7 @@ mod tests {
         let expected = include_bytes!("../../swizzle_data/64_bc7_linear_deswizzle.bin");
         let mut actual = vec![0u8; 64 * 64];
 
-        deswizzle_block_linear(
-            64 / 4,
-            64 / 4,
-            input,
-            &mut actual,
-            get_block_height(64 / 4),
-            16,
-        );
+        deswizzle_block_linear(64 / 4, 64 / 4, input, &mut actual, block_height(64 / 4), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -259,7 +304,7 @@ mod tests {
             128 / 4,
             input,
             &mut actual,
-            get_block_height(128 / 4),
+            block_height(128 / 4),
             8,
         );
 
@@ -278,7 +323,7 @@ mod tests {
             128 / 4,
             input,
             &mut actual,
-            get_block_height(128 / 4),
+            block_height(128 / 4),
             16,
         );
 
@@ -292,7 +337,7 @@ mod tests {
         let mut actual = vec![0u8; 128 * 128 * 16];
 
         // R32G32B32A32_FLOAT has the same swizzle patterns as BC7.
-        deswizzle_block_linear(128, 128, input, &mut actual, get_block_height(128), 16);
+        deswizzle_block_linear(128, 128, input, &mut actual, block_height(128), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -308,7 +353,7 @@ mod tests {
             128 / 4,
             input,
             &mut actual,
-            get_block_height(128 / 4),
+            block_height(128 / 4),
             16,
         );
 
@@ -326,7 +371,7 @@ mod tests {
             256 / 4,
             input,
             &mut actual,
-            get_block_height(256 / 4),
+            block_height(256 / 4),
             16,
         );
 
@@ -344,7 +389,7 @@ mod tests {
             320 / 4,
             input,
             &mut actual,
-            get_block_height(320 / 4),
+            block_height(320 / 4),
             16,
         );
 
@@ -362,7 +407,7 @@ mod tests {
             512 / 4,
             input,
             &mut actual,
-            get_block_height(512 / 4),
+            block_height(512 / 4),
             16,
         );
 
@@ -380,7 +425,7 @@ mod tests {
             1024 / 4,
             input,
             &mut actual,
-            get_block_height(1024 / 4),
+            block_height(1024 / 4),
             16,
         );
 
@@ -389,30 +434,42 @@ mod tests {
 
     #[test]
     fn width_in_gobs_block16() {
-        assert_eq!(20, get_width_in_gobs(320 / 4, 16));
+        assert_eq!(20, width_in_gobs(320 / 4, 16));
     }
 
     #[test]
     fn block_heights() {
-        assert_eq!(8, get_block_height(64));
+        assert_eq!(8, block_height(64));
 
         // BCN Tiles.
-        assert_eq!(16, get_block_height(768 / 4));
-        assert_eq!(16, get_block_height(384 / 4));
-        assert_eq!(16, get_block_height(384 / 4));
-        assert_eq!(8, get_block_height(320 / 4));
-        assert_eq!(4, get_block_height(80 / 4));
+        assert_eq!(16, block_height(768 / 4));
+        assert_eq!(16, block_height(384 / 4));
+        assert_eq!(16, block_height(384 / 4));
+        assert_eq!(8, block_height(320 / 4));
+        assert_eq!(4, block_height(80 / 4));
     }
 
     #[test]
     fn surface_sizes_block4() {
-        assert_eq!(1048576, get_surface_size(512, 512, 4));
+        assert_eq!(
+            1048576,
+            swizzled_surface_size(512, 512, block_height(512), 4)
+        );
     }
 
     #[test]
     fn surface_sizes_block16() {
-        assert_eq!(163840, get_surface_size(320 / 4, 320 / 4, 16));
-        assert_eq!(40960, get_surface_size(160 / 4, 160 / 4, 16));
-        assert_eq!(1024, get_surface_size(32 / 4, 32 / 4, 16));
+        assert_eq!(
+            163840,
+            swizzled_surface_size(320 / 4, 320 / 4, block_height(320 / 4), 16)
+        );
+        assert_eq!(
+            40960,
+            swizzled_surface_size(160 / 4, 160 / 4, block_height(160 / 4), 16)
+        );
+        assert_eq!(
+            1024,
+            swizzled_surface_size(32 / 4, 32 / 4, block_height(32 / 4), 16)
+        );
     }
 }

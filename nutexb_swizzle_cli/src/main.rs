@@ -301,9 +301,9 @@ fn write_addresses(sub_m: &clap::ArgMatches) {
     let block_count: usize = match sub_m.value_of("imagesize") {
         Some(v) => {
             let image_size: usize = v.parse().unwrap();
-            image_size / format.get_tile_size_in_bytes()
+            image_size / format.tile_size_in_bytes()
         }
-        None => format.get_tile_count(width, height),
+        None => format.tile_count(width, height),
     };
     let mut writer = std::io::BufWriter::new(std::fs::File::create(output).unwrap());
     if output.extension().unwrap() == "nutexb" {
@@ -324,7 +324,9 @@ fn write_addresses(sub_m: &clap::ArgMatches) {
     } else {
         match format {
             ImageFormat::Rgba8 => nutexb_swizzle_cli::write_rgba_lut(&mut writer, block_count),
-            ImageFormat::RgbaF32 => nutexb_swizzle_cli::write_rgba_f32_lut(&mut writer, block_count),
+            ImageFormat::RgbaF32 => {
+                nutexb_swizzle_cli::write_rgba_f32_lut(&mut writer, block_count)
+            }
             ImageFormat::Bc1 => nutexb_swizzle_cli::write_bc1_lut(&mut writer, block_count),
             ImageFormat::Bc3 => nutexb_swizzle_cli::write_bc3_lut(&mut writer, block_count),
             ImageFormat::Bc7 => nutexb_swizzle_cli::write_bc7_lut(&mut writer, block_count),
