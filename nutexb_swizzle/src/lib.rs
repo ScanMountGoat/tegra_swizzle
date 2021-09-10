@@ -1,5 +1,5 @@
 //! Functions for swizzling and deswizzling texture data for the Tegra X1's block linear format.
-//! Block linear arranges bytes of a texture surface into a 2D grid of blocks. 
+//! Block linear arranges bytes of a texture surface into a 2D grid of blocks.
 //! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.
 //!
@@ -9,12 +9,17 @@
 //! or `width_in_pixels / 4 * bytes_per_tile` many bytes.
 //! The surface width is rounded up to the width in blocks or 64 bytes (one GOB).
 //!
-//! The height of the surface is `height_in_pixels` many bytes for most formats and 
+//! The height of the surface is `height_in_pixels` many bytes for most formats and
 //! `height_in_pixels / 4` many bytes for BCN compressed formats since the tiles are arranged horizontally within the row.
 //! The surface height is rounded up to the height in blocks or `block_height * 8` bytes.
 
 // #![no_std]
 // TODO: We don't need std since the core crate can provide the necessary memcpy operation.
+
+// TODO: Use u32 for everything?
+const GOB_WIDTH: usize = 64;
+const GOB_HEIGHT: usize = 8;
+const GOB_SIZE: usize = GOB_WIDTH * GOB_HEIGHT;
 
 // Code taken from examples in Tegra TRM page 1187.
 // Return the starting address of the GOB containing the pixel at location (x, y).
@@ -26,15 +31,17 @@ fn gob_address(
     bytes_per_pixel: usize,
 ) -> usize {
     // TODO: Optimize this?
-    (y / (8 * block_height)) * 512 * block_height * image_width_in_gobs
-        + (x * bytes_per_pixel / 64) * 512 * block_height
-        + (y % (8 * block_height) / 8) * 512
+    // TODO: Is this a row major index based on blocks?
+    (y / (GOB_HEIGHT * block_height)) * GOB_SIZE * block_height * image_width_in_gobs
+        + (x * bytes_per_pixel / GOB_WIDTH) * GOB_SIZE * block_height
+        + (y % (GOB_HEIGHT * block_height) / GOB_HEIGHT) * GOB_SIZE
 }
 
 // Code taken from examples in Tegra TRM page 1188.
 // Return the offset within the GOB for the byte at location (x, y).
 fn gob_offset(x: usize, y: usize) -> usize {
     // TODO: Optimize this?
+    // TODO: Describe the pattern here?
     ((x % 64) / 32) * 256 + ((y % 8) / 2) * 64 + ((x % 32) / 16) * 32 + (y % 2) * 16 + (x % 16)
 }
 
@@ -71,8 +78,8 @@ pub fn swizzled_surface_size(
 ) -> usize {
     let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
     // TODO: Make gob width and gob height constants?
-    let height_in_blocks = div_round_up(height, block_height * 8);
-    width_in_gobs * height_in_blocks * block_height * 512
+    let height_in_blocks = div_round_up(height, block_height * GOB_HEIGHT);
+    width_in_gobs * height_in_blocks * block_height * GOB_SIZE
 }
 
 /// Calculates the size in bytes for the deswizzled data for the given dimensions.
@@ -119,7 +126,7 @@ fn div_round_up(x: usize, d: usize) -> usize {
 }
 
 fn width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
-    div_round_up(width * bytes_per_pixel, 64)
+    div_round_up(width * bytes_per_pixel, GOB_WIDTH)
 }
 
 // TODO: Avoid panics?
@@ -145,7 +152,6 @@ pub fn swizzle_block_linear(
     // TODO: Extend this to work with depth as well.
     for y in 0..height {
         for x in 0..width {
-            // The bit patterns don't overlap, so just sum the offsets.
             let src = swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
             let dst = (y * width + x) * bytes_per_pixel;
 
@@ -180,7 +186,6 @@ pub fn deswizzle_block_linear(
     // TODO: Extend this to work with depth as well.
     for y in 0..height {
         for x in 0..width {
-            // The bit patterns don't overlap, so just sum the offsets.
             let src = swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
             let dst = (y * width + x) * bytes_per_pixel;
 
