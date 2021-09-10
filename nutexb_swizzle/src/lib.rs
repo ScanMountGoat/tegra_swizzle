@@ -32,9 +32,9 @@ fn gob_address(
 ) -> usize {
     // TODO: Optimize this?
     // TODO: Is this a row major index based on blocks?
-    (y / (GOB_HEIGHT * block_height)) * GOB_SIZE * block_height * image_width_in_gobs
-        + (x * bytes_per_pixel / GOB_WIDTH) * GOB_SIZE * block_height
-        + (y % (GOB_HEIGHT * block_height) / GOB_HEIGHT) * GOB_SIZE
+    (y / (GOB_HEIGHT * block_height)) * GOB_SIZE * block_height * image_width_in_gobs // block_row * bytes_per_row?
+        + (x * bytes_per_pixel / GOB_WIDTH) * GOB_SIZE * block_height // block_column * bytes_per_column?
+        + (y % (GOB_HEIGHT * block_height) / GOB_HEIGHT) * GOB_SIZE // find the right column within a block?
 }
 
 // Code taken from examples in Tegra TRM page 1188.
