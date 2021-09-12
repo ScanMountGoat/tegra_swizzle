@@ -20,7 +20,7 @@ impl<'a> Arbitrary<'a> for Input {
             height: u.int_in_range(0..=4096)?,
             // TODO: How to handle zero?
             block_height: u.int_in_range(1..=32)?,
-            bytes_per_pixel: u.int_in_range(1..=16)?,
+            bytes_per_pixel: u.int_in_range(1..=32)?,
         })
     }
 }

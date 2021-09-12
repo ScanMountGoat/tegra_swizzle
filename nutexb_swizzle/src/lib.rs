@@ -16,24 +16,17 @@
 // #![no_std]
 // TODO: We don't need std since the core crate can provide the necessary memcpy operation.
 
-// TODO: Use u32 for everything?
 const GOB_WIDTH: usize = 64;
 const GOB_HEIGHT: usize = 8;
 const GOB_SIZE: usize = GOB_WIDTH * GOB_HEIGHT;
 
 // Code taken from examples in Tegra TRM page 1187.
 // Return the starting address of the GOB containing the pixel at location (x, y).
-fn gob_address(
-    x: usize,
-    y: usize,
-    block_height: usize,
-    image_width_in_gobs: usize,
-    bytes_per_pixel: usize,
-) -> usize {
+fn gob_address(x: usize, y: usize, block_height: usize, image_width_in_gobs: usize) -> usize {
     // TODO: Optimize this?
     // TODO: Is this a row major index based on blocks?
     (y / (GOB_HEIGHT * block_height)) * GOB_SIZE * block_height * image_width_in_gobs // block_row * bytes_per_row?
-        + (x * bytes_per_pixel / GOB_WIDTH) * GOB_SIZE * block_height // block_column * bytes_per_column?
+        + (x / GOB_WIDTH) * GOB_SIZE * block_height // block_column * bytes_per_column?
         + (y % (GOB_HEIGHT * block_height) / GOB_HEIGHT) * GOB_SIZE // find the right column within a block?
 }
 
@@ -53,12 +46,18 @@ fn swizzled_address(
     block_height: usize,
     image_width_in_gobs: usize,
     bytes_per_pixel: usize,
+    i: usize, // HACK: offset within a pixel?
 ) -> usize {
-    let gob_address = gob_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
+    let gob_address = gob_address(
+        x * bytes_per_pixel + i,
+        y,
+        block_height,
+        image_width_in_gobs,
+    );
 
     // Multiply by bytes_per_pixel since this function expects byte coordinates.
     // We assume 1 byte per row, so y is left unchanged.
-    let gob_offset = gob_offset(x * bytes_per_pixel, y);
+    let gob_offset = gob_offset(x * bytes_per_pixel + i, y);
 
     gob_address + gob_offset
 }
@@ -147,19 +146,44 @@ pub fn swizzle_block_linear(
     block_height: usize,
     bytes_per_pixel: usize,
 ) {
-    let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
+    swizzle_inner(
+        width,
+        bytes_per_pixel,
+        height,
+        block_height,
+        destination,
+        source,
+        false,
+    );
+}
 
-    // TODO: Extend this to work with depth as well.
+fn swizzle_inner(
+    width: usize,
+    bytes_per_pixel: usize,
+    height: usize,
+    block_height: usize,
+    destination: &mut [u8],
+    source: &[u8],
+    deswizzle: bool,
+) {
+    // TODO: Switch to using an optimized function utilitizing SIMD.
+    // This naive solution can serve as a reference for fuzz testing.
+    let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
     for y in 0..height {
         for x in 0..width {
-            let src = swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
-            let dst = (y * width + x) * bytes_per_pixel;
+            // TODO: The condition doesn't need to be in the inner loop (benchmark)?
+            for i in 0..bytes_per_pixel {
+                let swizzled_offset =
+                    swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel, i);
+                let linear_offset = (y * width + x) * bytes_per_pixel + i;
 
-            // Swap the offets for swizzling or deswizzling.
-            // TODO: The condition doesn't need to be in the inner loop.
-            // TODO: Have an inner function and swap the source/destination arguments in the outer function?
-            (&mut destination[src..src + bytes_per_pixel])
-                .copy_from_slice(&source[dst..dst + bytes_per_pixel]);
+                // Swap the addresses for swizzling vs deswizzling.
+                if deswizzle {
+                    destination[linear_offset] = source[swizzled_offset];
+                } else {
+                    destination[swizzled_offset] = source[linear_offset];
+                }
+            }
         }
     }
 }
@@ -181,18 +205,15 @@ pub fn deswizzle_block_linear(
     block_height: usize,
     bytes_per_pixel: usize,
 ) {
-    let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
-
-    // TODO: Extend this to work with depth as well.
-    for y in 0..height {
-        for x in 0..width {
-            let src = swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel);
-            let dst = (y * width + x) * bytes_per_pixel;
-
-            (&mut destination[dst..dst + bytes_per_pixel])
-                .copy_from_slice(&source[src..src + bytes_per_pixel]);
-        }
-    }
+    swizzle_inner(
+        width,
+        bytes_per_pixel,
+        height,
+        block_height,
+        destination,
+        source,
+        true,
+    );
 }
 
 pub mod ffi {
@@ -285,7 +306,53 @@ pub mod ffi {
 
 #[cfg(test)]
 mod tests {
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
     use super::*;
+
+    #[test]
+    fn swizzle_deswizzle_bytes_per_pixel() {
+        let width = 312;
+        let height = 575;
+        let block_height = 8;
+
+        // Test a value that isn't 4, 8, or 16.
+        // Non standard values won't show up in practice, 
+        // but the algorithm can still handle these cases in theory.
+        let bytes_per_pixel = 12;
+
+        // TODO: Move the size calculations into the function itself?
+        let swizzled_size = swizzled_surface_size(width, height, block_height, bytes_per_pixel);
+        let deswizzled_size = deswizzled_surface_size(width, height, bytes_per_pixel);
+
+        let seed = [13u8; 32];
+        let mut rng: StdRng = SeedableRng::from_seed(seed);
+        let input: Vec<_> = (0..deswizzled_size)
+            .map(|_| rng.gen_range::<u8, _>(0..=255))
+            .collect();
+
+        let mut swizzled = vec![0u8; swizzled_size];
+        swizzle_block_linear(
+            width,
+            height,
+            &input,
+            &mut swizzled,
+            block_height,
+            bytes_per_pixel,
+        );
+
+        let mut deswizzled = vec![0u8; deswizzled_size];
+        deswizzle_block_linear(
+            width,
+            height,
+            &swizzled,
+            &mut deswizzled,
+            block_height,
+            bytes_per_pixel,
+        );
+
+        assert_eq!(input, deswizzled);
+    }
 
     #[test]
     fn deswizzle_bc7_64_64() {

@@ -12,6 +12,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
+rand = "0.8.4"
 
 [dependencies.nutexb_swizzle]
 path = ".."
