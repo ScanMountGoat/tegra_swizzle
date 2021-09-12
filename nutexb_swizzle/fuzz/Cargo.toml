@@ -16,14 +16,15 @@ rand = "0.8.4"
 
 [dependencies.nutexb_swizzle]
 path = ".."
+features = ["arbitrary"]
 
 # Prevent this from interfering with workspaces
 [workspace]
 members = ["."]
 
 [[bin]]
-name = "deswizzle_valid_input"
-path = "fuzz_targets/deswizzle_valid_input.rs"
+name = "deswizzle"
+path = "fuzz_targets/deswizzle.rs"
 test = false
 doc = false
 

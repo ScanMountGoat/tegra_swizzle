@@ -8,19 +8,17 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 struct Input {
     width: usize,
     height: usize,
-    block_height: usize,
+    block_height: nutexb_swizzle::BlockHeight,
     bytes_per_pixel: usize,
 }
 
 impl<'a> Arbitrary<'a> for Input {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Input {
-            // TODO: Try other ranges?
-            width: u.int_in_range(0..=4096)?,
-            height: u.int_in_range(0..=4096)?,
-            // TODO: How to handle zero?
-            block_height: u.int_in_range(1..=32)?,
-            bytes_per_pixel: u.int_in_range(1..=32)?,
+            width: u.int_in_range(0..=8096)?,
+            height: u.int_in_range(0..=8096)?,
+            block_height: u.arbitrary()?,
+            bytes_per_pixel: u.int_in_range(0..=32)?,
         })
     }
 }
@@ -37,20 +35,10 @@ fuzz_target!(|input: Input| {
         )
     ];
 
-    let mut deswizzled = vec![
-        0u8;
-        nutexb_swizzle::deswizzled_surface_size(
-            input.width,
-            input.height,
-            input.bytes_per_pixel
-        )
-    ];
-
     nutexb_swizzle::deswizzle_block_linear(
         input.width,
         input.height,
         &swizzled,
-        &mut deswizzled,
         input.block_height,
         input.bytes_per_pixel,
     );
