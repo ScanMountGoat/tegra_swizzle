@@ -1,7 +1,7 @@
 # Nutexb Swizzling
 <img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/swizzle3d.png" height="auto" width="100%">
 
-Documentation and tools for Tegra X1 swizzling used for nutexb texture files for Smash Ultimate.  The swizzle code and bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/). The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 4x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
+Documentation and tools for Tegra X1 swizzling used for nutexb texture files for Smash Ultimate.  The swizzle code and bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/). The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
 
 ## Documentation
 See the [swizzle](swizzle.md) page for documentation on what formats and dimensions are currently supported as well as an explanation of texture swizzling. 
