@@ -64,10 +64,7 @@ mod tests {
         assert_eq!(8, ImageFormat::tile_size_in_bytes(&ImageFormat::Bc1));
         assert_eq!(16, ImageFormat::tile_size_in_bytes(&ImageFormat::Bc3));
         assert_eq!(16, ImageFormat::tile_size_in_bytes(&ImageFormat::Bc7));
-        assert_eq!(
-            16,
-            ImageFormat::tile_size_in_bytes(&ImageFormat::RgbaF32)
-        );
+        assert_eq!(16, ImageFormat::tile_size_in_bytes(&ImageFormat::RgbaF32));
     }
 
     #[test]
@@ -76,10 +73,7 @@ mod tests {
         assert_eq!(5, ImageFormat::tile_count(&ImageFormat::Bc1, 5, 16));
         assert_eq!(5, ImageFormat::tile_count(&ImageFormat::Bc3, 5, 16));
         assert_eq!(5, ImageFormat::tile_count(&ImageFormat::Bc7, 5, 16));
-        assert_eq!(
-            80,
-            ImageFormat::tile_count(&ImageFormat::RgbaF32, 5, 16)
-        );
+        assert_eq!(80, ImageFormat::tile_count(&ImageFormat::RgbaF32, 5, 16));
     }
 
     #[test]

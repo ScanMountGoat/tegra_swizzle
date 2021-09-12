@@ -40,6 +40,7 @@ pub fn swizzle_data(
     let output_data = nutexb_swizzle::swizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
+        1,
         input_data,
         block_height,
         tile_size,
@@ -81,6 +82,7 @@ pub fn deswizzle_data(
     let output_data = nutexb_swizzle::deswizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
+        1,
         input_data,
         block_height,
         tile_size,
@@ -180,7 +182,7 @@ fn create_swizzle_lut<T: LookupBlock>(swizzled: &[T], deswizzled: &[T]) -> Vec<i
 pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
     for i in 0..pixel_count as u32 {
         // Use the linear address to create unique pixel values.
-        writer.write_all(&(i / 128).to_le_bytes()).unwrap();
+        writer.write_all(&i.to_le_bytes()).unwrap();
     }
 }
 

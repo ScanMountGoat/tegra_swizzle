@@ -1,4 +1,4 @@
-//! Functions for swizzling ([swizzle_block_linear]) and deswizzling ([deswizzle_block_linear]) texture data for the Tegra X1's block linear format.
+//! The [swizzle_block_linear] and [deswizzle_block_linear] functions implement the texture swizzling algorithm for the Tegra X1's block linear format.
 //!
 //! Block linear arranges bytes of a texture surface into a 2D grid of blocks.
 //! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
@@ -61,12 +61,37 @@ impl BlockHeight {
 
 // Code taken from examples in Tegra TRM page 1187.
 // Return the starting address of the GOB containing the pixel at location (x, y).
-fn gob_address(x: usize, y: usize, block_height: usize, image_width_in_gobs: usize) -> usize {
-    // TODO: Optimize this?
-    // TODO: Is this a row major index based on blocks?
-    (y / (GOB_HEIGHT * block_height)) * GOB_SIZE * block_height * image_width_in_gobs // block_row * bytes_per_row?
-        + (x / GOB_WIDTH) * GOB_SIZE * block_height // block_column * bytes_per_column?
-        + (y % (GOB_HEIGHT * block_height) / GOB_HEIGHT) * GOB_SIZE // find the right column within a block?
+fn gob_address(
+    x: usize,
+    y: usize,
+    z: usize,
+    block_height: usize,
+    image_width_in_gobs: usize,
+    height_in_blocks: usize,
+) -> usize {
+    let block_height_in_bytes = GOB_HEIGHT * block_height;
+    let block_size_in_bytes = GOB_SIZE * block_height;
+
+    let block_z = z;
+
+    let block_y = y / block_height_in_bytes;
+
+    // Blocks are always one GOB wide.
+    let block_x = x / GOB_WIDTH;
+
+    // GOBs are stacked vertically within a block.
+    // The following example shows two blocks with block height of two.
+    // Setting the hex editor width to image_width_in_gobs * 64 makes the structure clearer.
+    // Block0 consists GOB0 and GOB1, and Block1 consists of GOB2 and GOB3.
+    // GOB0       GOB2
+    // GOB1       GOB3
+    let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT;
+
+    // Linear (row-major) block indexing.
+    block_z * image_width_in_gobs * height_in_blocks * block_size_in_bytes // TODO: This isn't accurate for z
+        + block_y * block_size_in_bytes * image_width_in_gobs
+        + block_x * block_size_in_bytes
+        + block_inner_row * GOB_SIZE
 }
 
 // Code taken from examples in Tegra TRM page 1188.
@@ -82,16 +107,20 @@ fn gob_offset(x: usize, y: usize) -> usize {
 fn swizzled_address(
     x: usize,
     y: usize,
+    z: usize,
     block_height: usize,
     image_width_in_gobs: usize,
+    height_in_blocks: usize,
     bytes_per_pixel: usize,
     i: usize, // HACK: offset within a pixel?
 ) -> usize {
     let gob_address = gob_address(
         x * bytes_per_pixel + i,
         y,
+        z,
         block_height,
         image_width_in_gobs,
+        height_in_blocks,
     );
 
     // Multiply by bytes_per_pixel since this function expects byte coordinates.
@@ -106,18 +135,28 @@ fn swizzled_address(
 pub const fn swizzled_surface_size(
     width: usize,
     height: usize,
+    depth: usize,
     block_height: BlockHeight,
     bytes_per_pixel: usize,
 ) -> usize {
     let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
-    let height_in_blocks = div_round_up(height, block_height as usize * GOB_HEIGHT);
-    width_in_gobs * height_in_blocks * block_height as usize * GOB_SIZE
+    let height_in_blocks = height_in_blocks(height, block_height as usize);
+    width_in_gobs * height_in_blocks * block_height as usize * GOB_SIZE * depth
+}
+
+const fn height_in_blocks(height: usize, block_height: usize) -> usize {
+    div_round_up(height, block_height * GOB_HEIGHT)
 }
 
 /// Calculates the size in bytes for the deswizzled data for the given dimensions.
 /// Compare with [swizzled_surface_size].
-pub const fn deswizzled_surface_size(width: usize, height: usize, bytes_per_pixel: usize) -> usize {
-    width * height * bytes_per_pixel
+pub const fn deswizzled_surface_size(
+    width: usize,
+    height: usize,
+    depth: usize,
+    bytes_per_pixel: usize,
+) -> usize {
+    width * height * depth * bytes_per_pixel
 }
 
 /// Gets the height of each block in GOBs for the specified `height`.
@@ -176,9 +215,9 @@ use nutexb_swizzle::{BlockHeight, deswizzled_surface_size, swizzle_block_linear}
 
 let width = 512;
 let height = 512;
-# let size = deswizzled_surface_size(width, height, 4);
+# let size = deswizzled_surface_size(width, height, 1, 4);
 # let input = vec![0u8; size];
-let output = swizzle_block_linear(width, height, &input, BlockHeight::Sixteen, 4);
+let output = swizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen, 4);
 ```
  */
 /// For compressed formats with multiple pixels in a block or tile, divide the width and height by the tile dimensions.
@@ -188,9 +227,9 @@ let output = swizzle_block_linear(width, height, &input, BlockHeight::Sixteen, 4
 // BC7 has 4x4 pixel tiles that each take up 16 bytes.
 let width = 512;
 let height = 512;
-# let size = deswizzled_surface_size(width / 4, height / 4, 16);
+# let size = deswizzled_surface_size(width / 4, height / 4, 1, 16);
 # let input = vec![0u8; size];
-let output = swizzle_block_linear(width / 4, height / 4, &input, BlockHeight::Sixteen, 16);
+let output = swizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
 ```
  */
 /// # Panics
@@ -199,15 +238,17 @@ let output = swizzle_block_linear(width / 4, height / 4, &input, BlockHeight::Si
 pub fn swizzle_block_linear(
     width: usize,
     height: usize,
+    depth: usize,
     source: &[u8],
     block_height: BlockHeight,
     bytes_per_pixel: usize,
 ) -> Vec<u8> {
     let mut destination =
-        vec![0u8; swizzled_surface_size(width, height, block_height, bytes_per_pixel)];
+        vec![0u8; swizzled_surface_size(width, height, depth, block_height, bytes_per_pixel)];
     swizzle_inner(
         width,
         height,
+        depth,
         source,
         &mut destination,
         block_height as usize,
@@ -220,6 +261,7 @@ pub fn swizzle_block_linear(
 fn swizzle_inner(
     width: usize,
     height: usize,
+    depth: usize,
     source: &[u8],
     destination: &mut [u8],
     block_height: usize,
@@ -233,19 +275,31 @@ fn swizzle_inner(
 
     // This naive solution can serve as a reference for later implementations.
     let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
-    for y in 0..height {
-        for x in 0..width {
-            // TODO: The condition doesn't need to be in the inner loop (benchmark)?
-            for i in 0..bytes_per_pixel {
-                let swizzled_offset =
-                    swizzled_address(x, y, block_height, image_width_in_gobs, bytes_per_pixel, i);
-                let linear_offset = (y * width + x) * bytes_per_pixel + i;
+    let height_in_blocks = height_in_blocks(height, block_height);
 
-                // Swap the addresses for swizzling vs deswizzling.
-                if deswizzle {
-                    destination[linear_offset] = source[swizzled_offset];
-                } else {
-                    destination[swizzled_offset] = source[linear_offset];
+    for z in 0..depth {
+        for y in 0..height {
+            for x in 0..width {
+                for i in 0..bytes_per_pixel {
+                    let swizzled_offset = swizzled_address(
+                        x,
+                        y,
+                        z,
+                        block_height,
+                        image_width_in_gobs,
+                        height_in_blocks,
+                        bytes_per_pixel,
+                        i,
+                    );
+                    let linear_offset = (z * width * height + y * width + x) * bytes_per_pixel + i;
+
+                    // TODO: The condition doesn't need to be in the inner loop (benchmark)?
+                    // Swap the addresses for swizzling vs deswizzling.
+                    if deswizzle {
+                        destination[linear_offset] = source[swizzled_offset];
+                    } else {
+                        destination[swizzled_offset] = source[linear_offset];
+                    }
                 }
             }
         }
@@ -263,9 +317,9 @@ use nutexb_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear}
 
 let width = 512;
 let height = 512;
-# let size = swizzled_surface_size(width, height, BlockHeight::Sixteen, 4);
+# let size = swizzled_surface_size(width, height, 1, BlockHeight::Sixteen, 4);
 # let input = vec![0u8; size];
-let output = deswizzle_block_linear(width, height, &input, BlockHeight::Sixteen, 4);
+let output = deswizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen, 4);
 ```
  */
 /// For compressed formats with multiple pixels in a block or tile, divide the width and height by the tile dimensions.
@@ -275,9 +329,9 @@ let output = deswizzle_block_linear(width, height, &input, BlockHeight::Sixteen,
 // BC7 has 4x4 pixel tiles that each take up 16 bytes.
 let width = 512;
 let height = 512;
-# let size = swizzled_surface_size(width / 4, height / 4, BlockHeight::Sixteen, 16);
+# let size = swizzled_surface_size(width / 4, height / 4, 1, BlockHeight::Sixteen, 16);
 # let input = vec![0u8; size];
-let output = deswizzle_block_linear(width / 4, height / 4, &input, BlockHeight::Sixteen, 16);
+let output = deswizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
 ```
  */
 /// # Panics
@@ -286,14 +340,16 @@ let output = deswizzle_block_linear(width / 4, height / 4, &input, BlockHeight::
 pub fn deswizzle_block_linear(
     width: usize,
     height: usize,
+    depth: usize,
     source: &[u8],
     block_height: BlockHeight,
     bytes_per_pixel: usize,
 ) -> Vec<u8> {
-    let mut destination = vec![0u8; deswizzled_surface_size(width, height, bytes_per_pixel)];
+    let mut destination = vec![0u8; deswizzled_surface_size(width, height, depth, bytes_per_pixel)];
     swizzle_inner(
         width,
         height,
+        depth,
         source,
         &mut destination,
         block_height as usize,
@@ -316,6 +372,7 @@ pub mod ffi {
     pub unsafe extern "C" fn swizzle_block_linear(
         width: usize,
         height: usize,
+        depth: usize,
         source: *const u8,
         source_len: usize,
         destination: *mut u8,
@@ -330,6 +387,7 @@ pub mod ffi {
         super::swizzle_inner(
             width,
             height,
+            depth,
             source,
             destination,
             // TODO: Check that block_height is a valid value?
@@ -348,6 +406,7 @@ pub mod ffi {
     pub unsafe extern "C" fn deswizzle_block_linear(
         width: usize,
         height: usize,
+        depth: usize,
         source: *const u8,
         source_len: usize,
         destination: *mut u8,
@@ -361,6 +420,7 @@ pub mod ffi {
         super::swizzle_inner(
             width,
             height,
+            depth,
             source,
             destination,
             BlockHeight::from_int(block_height) as usize,
@@ -374,12 +434,14 @@ pub mod ffi {
     pub extern "C" fn swizzled_surface_size(
         width: usize,
         height: usize,
+        depth: usize,
         block_height: usize,
         bytes_per_pixel: usize,
     ) -> usize {
         super::swizzled_surface_size(
             width,
             height,
+            depth,
             BlockHeight::from_int(block_height),
             bytes_per_pixel,
         )
@@ -390,9 +452,10 @@ pub mod ffi {
     pub extern "C" fn deswizzled_surface_size(
         width: usize,
         height: usize,
+        depth: usize,
         bytes_per_pixel: usize,
     ) -> usize {
-        super::deswizzled_surface_size(width, height, bytes_per_pixel)
+        super::deswizzled_surface_size(width, height, depth, bytes_per_pixel)
     }
 
     /// See [block_height](super::block_height).
@@ -419,7 +482,7 @@ mod tests {
         // but the algorithm can still handle these cases in theory.
         let bytes_per_pixel = 12;
 
-        let deswizzled_size = deswizzled_surface_size(width, height, bytes_per_pixel);
+        let deswizzled_size = deswizzled_surface_size(width, height, 1, bytes_per_pixel);
 
         let seed = [13u8; 32];
         let mut rng: StdRng = SeedableRng::from_seed(seed);
@@ -427,10 +490,11 @@ mod tests {
             .map(|_| rng.gen_range::<u8, _>(0..=255))
             .collect();
 
-        let swizzled = swizzle_block_linear(width, height, &input, block_height, bytes_per_pixel);
+        let swizzled =
+            swizzle_block_linear(width, height, 1, &input, block_height, bytes_per_pixel);
 
         let deswizzled =
-            deswizzle_block_linear(width, height, &swizzled, block_height, bytes_per_pixel);
+            deswizzle_block_linear(width, height, 1, &swizzled, block_height, bytes_per_pixel);
 
         assert_eq!(input, deswizzled);
     }
@@ -439,7 +503,7 @@ mod tests {
     fn deswizzle_bc7_64_64() {
         let input = include_bytes!("../../swizzle_data/64_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/64_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(64 / 4, 64 / 4, input, block_height(64 / 4), 16);
+        let actual = deswizzle_block_linear(64 / 4, 64 / 4, 1, input, block_height(64 / 4), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -448,7 +512,7 @@ mod tests {
     fn deswizzle_bc1_128_128() {
         let input = include_bytes!("../../swizzle_data/128_bc1_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_bc1_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128 / 4, 128 / 4, input, block_height(128 / 4), 8);
+        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, block_height(128 / 4), 8);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -457,7 +521,7 @@ mod tests {
     fn deswizzle_bc3_128_128() {
         let input = include_bytes!("../../swizzle_data/128_bc3_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_bc3_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128 / 4, 128 / 4, input, block_height(128 / 4), 16);
+        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, block_height(128 / 4), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -466,7 +530,7 @@ mod tests {
     fn deswizzle_rgba_f32_128_128() {
         let input = include_bytes!("../../swizzle_data/128_rgbaf32_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_rgbaf32_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128, 128, input, block_height(128), 16);
+        let actual = deswizzle_block_linear(128, 128, 1, input, block_height(128), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -475,7 +539,7 @@ mod tests {
     fn deswizzle_bc7_128_128() {
         let input = include_bytes!("../../swizzle_data/128_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128 / 4, 128 / 4, input, block_height(128 / 4), 16);
+        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, block_height(128 / 4), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -484,7 +548,7 @@ mod tests {
     fn deswizzle_bc7_256_256() {
         let input = include_bytes!("../../swizzle_data/256_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/256_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(256 / 4, 256 / 4, input, block_height(256 / 4), 16);
+        let actual = deswizzle_block_linear(256 / 4, 256 / 4, 1, input, block_height(256 / 4), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -493,7 +557,7 @@ mod tests {
     fn deswizzle_bc7_320_320() {
         let input = include_bytes!("../../swizzle_data/320_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/320_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(320 / 4, 320 / 4, input, block_height(320 / 4), 16);
+        let actual = deswizzle_block_linear(320 / 4, 320 / 4, 1, input, block_height(320 / 4), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -502,7 +566,7 @@ mod tests {
     fn deswizzle_bc7_512_512() {
         let input = include_bytes!("../../swizzle_data/512_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/512_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(512 / 4, 512 / 4, input, block_height(512 / 4), 16);
+        let actual = deswizzle_block_linear(512 / 4, 512 / 4, 1, input, block_height(512 / 4), 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -511,8 +575,21 @@ mod tests {
     fn deswizzle_bc7_1024_1024() {
         let input = include_bytes!("../../swizzle_data/1024_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/1024_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(1024 / 4, 1024 / 4, input, block_height(1024 / 4), 16);
+        let actual =
+            deswizzle_block_linear(1024 / 4, 1024 / 4, 1, input, block_height(1024 / 4), 16);
 
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    #[ignore]
+    fn deswizzle_rgba_16_16_16() {
+        // TODO: Fix the 3d case.
+        let input = include_bytes!("../../swizzle_data/16_16_16_rgba_linear.bin");
+        let expected = include_bytes!("../../swizzle_data/16_16_16_rgba_linear_deswizzle.bin");
+        let actual = deswizzle_block_linear(16, 16, 16, input, BlockHeight::Four, 4);
+        // let elements: Vec<_> = actual.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+        // dbg!(&elements[128..256]);
         assert_eq!(expected, &actual[..]);
     }
 
@@ -537,7 +614,15 @@ mod tests {
     fn surface_sizes_block4() {
         assert_eq!(
             1048576,
-            swizzled_surface_size(512, 512, block_height(512), 4)
+            swizzled_surface_size(512, 512, 1, block_height(512), 4)
+        );
+    }
+
+    #[test]
+    fn surface_sizes_3d() {
+        assert_eq!(
+            16384,
+            swizzled_surface_size(16, 16, 16, BlockHeight::Two, 4)
         );
     }
 
@@ -545,15 +630,15 @@ mod tests {
     fn surface_sizes_block16() {
         assert_eq!(
             163840,
-            swizzled_surface_size(320 / 4, 320 / 4, block_height(320 / 4), 16)
+            swizzled_surface_size(320 / 4, 320 / 4, 1, block_height(320 / 4), 16)
         );
         assert_eq!(
             40960,
-            swizzled_surface_size(160 / 4, 160 / 4, block_height(160 / 4), 16)
+            swizzled_surface_size(160 / 4, 160 / 4, 1, block_height(160 / 4), 16)
         );
         assert_eq!(
             1024,
-            swizzled_surface_size(32 / 4, 32 / 4, block_height(32 / 4), 16)
+            swizzled_surface_size(32 / 4, 32 / 4, 1, block_height(32 / 4), 16)
         );
     }
 }

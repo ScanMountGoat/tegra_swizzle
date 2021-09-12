@@ -11,6 +11,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 struct Input {
     width: usize,
     height: usize,
+    depth: usize,
     block_height: nutexb_swizzle::BlockHeight,
     bytes_per_pixel: usize,
 }
@@ -20,6 +21,7 @@ impl<'a> Arbitrary<'a> for Input {
         Ok(Input {
             width: u.int_in_range(0..=4096)?,
             height: u.int_in_range(0..=4096)?,
+            depth: 1,
             block_height: u.arbitrary()?,
             bytes_per_pixel: u.int_in_range(0..=32)?,
         })
@@ -29,7 +31,7 @@ impl<'a> Arbitrary<'a> for Input {
 fuzz_target!(|input: Input| {
     // fuzzed code goes here
     let deswizzled_size =
-        nutexb_swizzle::deswizzled_surface_size(input.width, input.height, input.bytes_per_pixel);
+        nutexb_swizzle::deswizzled_surface_size(input.width, input.height, input.depth, input.bytes_per_pixel);
 
     let seed = [13u8; 32];
     let mut rng: StdRng = SeedableRng::from_seed(seed);
@@ -38,6 +40,7 @@ fuzz_target!(|input: Input| {
     let swizzled = nutexb_swizzle::swizzle_block_linear(
         input.width,
         input.height,
+        input.depth,
         &deswizzled,
         input.block_height,
         input.bytes_per_pixel,
@@ -46,6 +49,7 @@ fuzz_target!(|input: Input| {
     let new_deswizzled = nutexb_swizzle::deswizzle_block_linear(
         input.width,
         input.height,
+        input.depth,
         &swizzled,
         input.block_height,
         input.bytes_per_pixel,
