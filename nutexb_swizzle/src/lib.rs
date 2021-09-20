@@ -69,10 +69,12 @@ fn gob_address(
     image_width_in_gobs: usize,
     height_in_blocks: usize,
 ) -> usize {
+    let block_depth = 1; // TODO: Block depth parameter?
+
+    // TODO: Benchmark moving the x,y,z components into their corresponding loops.
     let block_height_in_bytes = GOB_HEIGHT * block_height;
     let block_size_in_bytes = GOB_SIZE * block_height;
-
-    let block_z = z;
+    let block_size_in_bytes_3d = block_size_in_bytes * block_depth;
 
     let block_y = y / block_height_in_bytes;
 
@@ -88,9 +90,10 @@ fn gob_address(
     let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT;
 
     // Linear (row-major) block indexing.
-    block_z * image_width_in_gobs * height_in_blocks * block_size_in_bytes // TODO: This isn't accurate for z
-        + block_y * block_size_in_bytes * image_width_in_gobs
-        + block_x * block_size_in_bytes
+    z / block_depth * height_in_blocks * block_size_in_bytes_3d
+        + (z & (block_depth << 4) - 1) * block_size_in_bytes_3d
+        + block_y * block_size_in_bytes_3d * image_width_in_gobs
+        + block_x * block_size_in_bytes_3d
         + block_inner_row * GOB_SIZE
 }
 
@@ -188,7 +191,7 @@ pub fn block_height(height: usize) -> BlockHeight {
         0..=1 => BlockHeight::One,
         2 => BlockHeight::Two,
         3..=4 => BlockHeight::Four,
-        5..=11 => BlockHeight::Eight,
+        5..=8 => BlockHeight::Eight, // TODO: This doesn't work for 320x320 BC7 mip0?
         // TODO: The TRM mentions 32 also works?
         _ => BlockHeight::Sixteen,
     }
@@ -293,7 +296,7 @@ fn swizzle_inner(
                     );
                     let linear_offset = (z * width * height + y * width + x) * bytes_per_pixel + i;
 
-                    // TODO: The condition doesn't need to be in the inner loop (benchmark)?
+                    // TODO: Does this condition optimize out since we specify it at compile time?
                     // Swap the addresses for swizzling vs deswizzling.
                     if deswizzle {
                         destination[linear_offset] = source[swizzled_offset];
@@ -503,7 +506,7 @@ mod tests {
     fn deswizzle_bc7_64_64() {
         let input = include_bytes!("../../swizzle_data/64_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/64_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(64 / 4, 64 / 4, 1, input, block_height(64 / 4), 16);
+        let actual = deswizzle_block_linear(64 / 4, 64 / 4, 1, input, BlockHeight::Two, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -512,7 +515,7 @@ mod tests {
     fn deswizzle_bc1_128_128() {
         let input = include_bytes!("../../swizzle_data/128_bc1_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_bc1_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, block_height(128 / 4), 8);
+        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, BlockHeight::Four, 8);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -521,7 +524,7 @@ mod tests {
     fn deswizzle_bc3_128_128() {
         let input = include_bytes!("../../swizzle_data/128_bc3_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_bc3_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, block_height(128 / 4), 16);
+        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, BlockHeight::Four, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -530,7 +533,7 @@ mod tests {
     fn deswizzle_rgba_f32_128_128() {
         let input = include_bytes!("../../swizzle_data/128_rgbaf32_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_rgbaf32_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128, 128, 1, input, block_height(128), 16);
+        let actual = deswizzle_block_linear(128, 128, 1, input, BlockHeight::Sixteen, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -539,7 +542,7 @@ mod tests {
     fn deswizzle_bc7_128_128() {
         let input = include_bytes!("../../swizzle_data/128_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/128_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, block_height(128 / 4), 16);
+        let actual = deswizzle_block_linear(128 / 4, 128 / 4, 1, input, BlockHeight::Four, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -548,7 +551,7 @@ mod tests {
     fn deswizzle_bc7_256_256() {
         let input = include_bytes!("../../swizzle_data/256_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/256_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(256 / 4, 256 / 4, 1, input, block_height(256 / 4), 16);
+        let actual = deswizzle_block_linear(256 / 4, 256 / 4, 1, input, BlockHeight::Eight, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -557,7 +560,7 @@ mod tests {
     fn deswizzle_bc7_320_320() {
         let input = include_bytes!("../../swizzle_data/320_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/320_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(320 / 4, 320 / 4, 1, input, block_height(320 / 4), 16);
+        let actual = deswizzle_block_linear(320 / 4, 320 / 4, 1, input, BlockHeight::Eight, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -566,7 +569,7 @@ mod tests {
     fn deswizzle_bc7_512_512() {
         let input = include_bytes!("../../swizzle_data/512_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/512_bc7_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(512 / 4, 512 / 4, 1, input, block_height(512 / 4), 16);
+        let actual = deswizzle_block_linear(512 / 4, 512 / 4, 1, input, BlockHeight::Sixteen, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -576,7 +579,7 @@ mod tests {
         let input = include_bytes!("../../swizzle_data/1024_bc7_linear.bin");
         let expected = include_bytes!("../../swizzle_data/1024_bc7_linear_deswizzle.bin");
         let actual =
-            deswizzle_block_linear(1024 / 4, 1024 / 4, 1, input, block_height(1024 / 4), 16);
+            deswizzle_block_linear(1024 / 4, 1024 / 4, 1, input, BlockHeight::Sixteen, 16);
 
         assert_eq!(expected, &actual[..]);
     }
@@ -587,7 +590,7 @@ mod tests {
         // TODO: Fix the 3d case.
         let input = include_bytes!("../../swizzle_data/16_16_16_rgba_linear.bin");
         let expected = include_bytes!("../../swizzle_data/16_16_16_rgba_linear_deswizzle.bin");
-        let actual = deswizzle_block_linear(16, 16, 16, input, BlockHeight::Four, 4);
+        let actual = deswizzle_block_linear(16, 16, 16, input, BlockHeight::One, 4);
         // let elements: Vec<_> = actual.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
         // dbg!(&elements[128..256]);
         assert_eq!(expected, &actual[..]);
@@ -602,11 +605,13 @@ mod tests {
     fn block_heights() {
         assert_eq!(BlockHeight::Eight, block_height(64));
 
+        // TODO: This should be 8 for the first mip level?
+        assert_eq!(BlockHeight::Sixteen, block_height(320 / 4));
+
         // BCN Tiles.
         assert_eq!(BlockHeight::Sixteen, block_height(768 / 4));
         assert_eq!(BlockHeight::Sixteen, block_height(384 / 4));
         assert_eq!(BlockHeight::Sixteen, block_height(384 / 4));
-        assert_eq!(BlockHeight::Eight, block_height(320 / 4));
         assert_eq!(BlockHeight::Four, block_height(80 / 4));
     }
 
