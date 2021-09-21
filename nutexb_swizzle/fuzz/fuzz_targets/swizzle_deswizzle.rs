@@ -29,7 +29,6 @@ impl<'a> Arbitrary<'a> for Input {
 }
 
 fuzz_target!(|input: Input| {
-    // fuzzed code goes here
     let deswizzled_size =
         nutexb_swizzle::deswizzled_surface_size(input.width, input.height, input.depth, input.bytes_per_pixel);
 
@@ -44,7 +43,7 @@ fuzz_target!(|input: Input| {
         &deswizzled,
         input.block_height,
         input.bytes_per_pixel,
-    );
+    ).unwrap();
 
     let new_deswizzled = nutexb_swizzle::deswizzle_block_linear(
         input.width,
@@ -53,7 +52,7 @@ fuzz_target!(|input: Input| {
         &swizzled,
         input.block_height,
         input.bytes_per_pixel,
-    );
+    ).unwrap();
 
     if deswizzled != new_deswizzled {
         panic!("Swizzle deswizzle is not 1:1");

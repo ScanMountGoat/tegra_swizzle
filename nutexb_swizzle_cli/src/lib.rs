@@ -29,7 +29,6 @@ pub fn swizzle_data(
     height: usize,
     format: &ImageFormat,
 ) -> Vec<u8> {
-    // TODO: This isn't correct for RGBA.
     let width_in_tiles = width / format.tile_dimension();
     let height_in_tiles = height / format.tile_dimension();
 
@@ -44,7 +43,7 @@ pub fn swizzle_data(
         input_data,
         block_height,
         tile_size,
-    );
+    ).unwrap();
 
     output_data
 }
@@ -71,7 +70,6 @@ pub fn deswizzle_data(
     height: usize,
     format: &ImageFormat,
 ) -> Vec<u8> {
-    // TODO: This isn't correct for RGBA.
     let width_in_tiles = width / format.tile_dimension();
     let height_in_tiles = height / format.tile_dimension();
 
@@ -86,7 +84,7 @@ pub fn deswizzle_data(
         input_data,
         block_height,
         tile_size,
-    );
+    ).unwrap();
 
     output_data
 }
@@ -182,7 +180,7 @@ fn create_swizzle_lut<T: LookupBlock>(swizzled: &[T], deswizzled: &[T]) -> Vec<i
 pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
     for i in 0..pixel_count as u32 {
         // Use the linear address to create unique pixel values.
-        writer.write_all(&i.to_le_bytes()).unwrap();
+        writer.write_all(&(i/128).to_le_bytes()).unwrap();
     }
 }
 
