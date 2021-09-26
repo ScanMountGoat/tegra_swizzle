@@ -97,9 +97,3 @@ pub extern "C" fn deswizzled_surface_size(
 ) -> usize {
     super::deswizzled_surface_size(width, height, depth, bytes_per_pixel)
 }
-
-/// See [block_height](super::block_height).
-#[no_mangle]
-pub extern "C" fn block_height(height: usize) -> usize {
-    super::block_height(height) as usize
-}

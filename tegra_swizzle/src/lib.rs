@@ -1,6 +1,6 @@
-//! The [swizzle_block_linear] and [deswizzle_block_linear] functions 
+//! The [swizzle_block_linear] and [deswizzle_block_linear] functions
 //! implement safe and efficient swizzling for the Tegra X1's block linear format.
-//! *2D surfaces are fully supported with minimal support for 3D surfaces. 
+//! *2D surfaces are fully supported with minimal support for 3D surfaces.
 //! Depth values other than 1 are not guaranteed to work properly at this time.*
 //!
 //! Block linear arranges bytes of a texture surface into a 2D grid of blocks.
@@ -190,41 +190,6 @@ pub const fn deswizzled_surface_size(
     width * height * depth * bytes_per_pixel
 }
 
-/// Gets the height of each block in GOBs for the specified `height`.
-/// For formats that compress multiple pixels into a single tile, divide the height in pixels by the tile height.
-/// # Examples
-///
-/// Non compressed formats can typically just use the height in pixels.
-/**
-```rust
-# use tegra_swizzle::BlockHeight;
-let height_in_pixels = 512;
-assert_eq!(BlockHeight::Sixteen, tegra_swizzle::block_height(height_in_pixels));
-```
-*/
-/// BCN formats work in 4x4 tiles instead of pixels, so divide the height by 4 since each tile is 4 pixels high.
-/**
-```rust
-# use tegra_swizzle::BlockHeight;
-let height_in_pixels = 512;
-assert_eq!(BlockHeight::Sixteen, tegra_swizzle::block_height(height_in_pixels / 4));
-```
-*/
-pub fn block_height(height: usize) -> BlockHeight {
-    let block_height = div_round_up(height, 8);
-
-    // TODO: Is it correct to find the closest power of two?
-    // TODO: This is only valid for nutexb, so it likely shouldn't be part of this API.
-    match block_height {
-        0..=1 => BlockHeight::One,
-        2 => BlockHeight::Two,
-        3..=4 => BlockHeight::Four,
-        5..=8 => BlockHeight::Eight, // TODO: This doesn't work for 320x320 BC7 mip0?
-        // TODO: The TRM mentions 32 also works?
-        _ => BlockHeight::Sixteen,
-    }
-}
-
 const fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
 }
@@ -289,6 +254,65 @@ pub fn swizzle_block_linear(
         depth,
         bytes_per_pixel,
         false,
+    );
+    Ok(destination)
+}
+
+/// Deswizzles the bytes from `source` using the block linear swizzling algorithm.
+/// # Examples
+/// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
+/**
+```rust
+use tegra_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
+
+let width = 512;
+let height = 512;
+# let size = swizzled_surface_size(width, height, 1, BlockHeight::Sixteen, 4);
+# let input = vec![0u8; size];
+let output = deswizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen, 4);
+```
+ */
+/// For compressed formats with multiple pixels in a block or tile, divide the width and height by the tile dimensions.
+/**
+```rust
+# use tegra_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
+// BC7 has 4x4 pixel tiles that each take up 16 bytes.
+let width = 512;
+let height = 512;
+# let size = swizzled_surface_size(width / 4, height / 4, 1, BlockHeight::Sixteen, 16);
+# let input = vec![0u8; size];
+let output = deswizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
+```
+ */
+ pub fn deswizzle_block_linear(
+    width: usize,
+    height: usize,
+    depth: usize,
+    source: &[u8],
+    block_height: BlockHeight,
+    bytes_per_pixel: usize,
+) -> Result<Vec<u8>, SwizzleError> {
+    let mut destination = vec![0u8; deswizzled_surface_size(width, height, depth, bytes_per_pixel)];
+
+    let expected_size = swizzled_surface_size(width, height, depth, block_height, bytes_per_pixel);
+    if source.len() < expected_size {
+        return Err(SwizzleError::NotEnoughData {
+            actual_size: source.len(),
+            expected_size,
+        });
+    }
+
+    // TODO: Can we assume depth is block_depth?
+    swizzle_inner(
+        width,
+        height,
+        depth,
+        source,
+        &mut destination,
+        block_height as usize,
+        depth,
+        bytes_per_pixel,
+        true,
     );
     Ok(destination)
 }
@@ -408,64 +432,7 @@ fn swizzle_deswizzle_gob(
     }
 }
 
-/// Deswizzles the bytes from `source` using the block linear swizzling algorithm.
-/// # Examples
-/// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
-/**
-```rust
-use tegra_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
 
-let width = 512;
-let height = 512;
-# let size = swizzled_surface_size(width, height, 1, BlockHeight::Sixteen, 4);
-# let input = vec![0u8; size];
-let output = deswizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen, 4);
-```
- */
-/// For compressed formats with multiple pixels in a block or tile, divide the width and height by the tile dimensions.
-/**
-```rust
-# use tegra_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
-// BC7 has 4x4 pixel tiles that each take up 16 bytes.
-let width = 512;
-let height = 512;
-# let size = swizzled_surface_size(width / 4, height / 4, 1, BlockHeight::Sixteen, 16);
-# let input = vec![0u8; size];
-let output = deswizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
-```
- */
-pub fn deswizzle_block_linear(
-    width: usize,
-    height: usize,
-    depth: usize,
-    source: &[u8],
-    block_height: BlockHeight,
-    bytes_per_pixel: usize,
-) -> Result<Vec<u8>, SwizzleError> {
-    let mut destination = vec![0u8; deswizzled_surface_size(width, height, depth, bytes_per_pixel)];
-
-    let expected_size = swizzled_surface_size(width, height, depth, block_height, bytes_per_pixel);
-    if source.len() < expected_size {
-        return Err(SwizzleError::NotEnoughData {
-            actual_size: source.len(),
-            expected_size,
-        });
-    }
-
-    // TODO: Can we assume depth is block_depth?
-    swizzle_inner(
-        width,
-        height,
-        depth,
-        source,
-        &mut destination,
-        block_height as usize,
-        depth,
-        bytes_per_pixel,
-        true,
-    );
-    Ok(destination)
-}
 
 #[cfg(test)]
 mod tests {
@@ -641,20 +608,6 @@ mod tests {
     }
 
     #[test]
-    fn block_heights() {
-        assert_eq!(BlockHeight::Eight, block_height(64));
-
-        // TODO: This should be 8 for the first mip level?
-        assert_eq!(BlockHeight::Sixteen, block_height(320 / 4));
-
-        // BCN Tiles.
-        assert_eq!(BlockHeight::Sixteen, block_height(768 / 4));
-        assert_eq!(BlockHeight::Sixteen, block_height(384 / 4));
-        assert_eq!(BlockHeight::Sixteen, block_height(384 / 4));
-        assert_eq!(BlockHeight::Four, block_height(80 / 4));
-    }
-
-    #[test]
     fn deswizzled_surface_sizes() {
         assert_eq!(3145728, deswizzled_surface_size(512, 512, 3, 4));
     }
@@ -663,7 +616,7 @@ mod tests {
     fn surface_sizes_block4() {
         assert_eq!(
             1048576,
-            swizzled_surface_size(512, 512, 1, block_height(512), 4)
+            swizzled_surface_size(512, 512, 1, BlockHeight::Sixteen, 4)
         );
     }
 
@@ -679,15 +632,15 @@ mod tests {
     fn surface_sizes_block16() {
         assert_eq!(
             163840,
-            swizzled_surface_size(320 / 4, 320 / 4, 1, block_height(320 / 4), 16)
+            swizzled_surface_size(320 / 4, 320 / 4, 1, BlockHeight::Sixteen, 16)
         );
         assert_eq!(
             40960,
-            swizzled_surface_size(160 / 4, 160 / 4, 1, block_height(160 / 4), 16)
+            swizzled_surface_size(160 / 4, 160 / 4, 1, BlockHeight::Four, 16)
         );
         assert_eq!(
             1024,
-            swizzled_surface_size(32 / 4, 32 / 4, 1, block_height(32 / 4), 16)
+            swizzled_surface_size(32 / 4, 32 / 4, 1, BlockHeight::One, 16)
         );
     }
 }

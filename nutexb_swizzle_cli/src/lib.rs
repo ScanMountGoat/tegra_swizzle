@@ -23,6 +23,21 @@ impl<T: BinRead + Eq + PartialEq + Default + Copy + Send + Sync + std::hash::Has
 {
 }
 
+fn block_height(height: usize) -> tegra_swizzle::BlockHeight {
+    let block_height = height / 8;
+
+    // TODO: Is it correct to find the closest power of two?
+    // TODO: This is only valid for nutexb, so it likely shouldn't be part of this API.
+    match block_height {
+        0..=1 => tegra_swizzle::BlockHeight::One,
+        2 => tegra_swizzle::BlockHeight::Two,
+        3..=4 => tegra_swizzle::BlockHeight::Four,
+        5..=8 => tegra_swizzle::BlockHeight::Eight, // TODO: This doesn't work for 320x320 BC7 mip0?
+        // TODO: The TRM mentions 32 also works?
+        _ => tegra_swizzle::BlockHeight::Sixteen,
+    }
+}
+
 pub fn swizzle_data(
     input_data: &[u8],
     width: usize,
@@ -34,7 +49,7 @@ pub fn swizzle_data(
 
     let tile_size = format.tile_size_in_bytes();
 
-    let block_height = tegra_swizzle::block_height(height_in_tiles);
+    let block_height = block_height(height_in_tiles);
 
     let output_data = tegra_swizzle::swizzle_block_linear(
         width_in_tiles,
@@ -43,7 +58,8 @@ pub fn swizzle_data(
         input_data,
         block_height,
         tile_size,
-    ).unwrap();
+    )
+    .unwrap();
 
     output_data
 }
@@ -75,7 +91,7 @@ pub fn deswizzle_data(
 
     let tile_size = format.tile_size_in_bytes();
 
-    let block_height = tegra_swizzle::block_height(height_in_tiles);
+    let block_height = block_height(height_in_tiles);
 
     let output_data = tegra_swizzle::deswizzle_block_linear(
         width_in_tiles,
@@ -84,7 +100,8 @@ pub fn deswizzle_data(
         input_data,
         block_height,
         tile_size,
-    ).unwrap();
+    )
+    .unwrap();
 
     output_data
 }
@@ -180,7 +197,7 @@ fn create_swizzle_lut<T: LookupBlock>(swizzled: &[T], deswizzled: &[T]) -> Vec<i
 pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
     for i in 0..pixel_count as u32 {
         // Use the linear address to create unique pixel values.
-        writer.write_all(&(i/128).to_le_bytes()).unwrap();
+        writer.write_all(&(i / 128).to_le_bytes()).unwrap();
     }
 }
 
