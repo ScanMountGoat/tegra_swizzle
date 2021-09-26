@@ -1,4 +1,7 @@
-//! The [swizzle_block_linear] and [deswizzle_block_linear] functions implement the texture swizzling algorithm for the Tegra X1's block linear format.
+//! The [swizzle_block_linear] and [deswizzle_block_linear] functions 
+//! implement safe and efficient swizzling for the Tegra X1's block linear format.
+//! *2D surfaces are fully supported with minimal support for 3D surfaces. 
+//! Depth values other than 1 are not guaranteed to work properly at this time.*
 //!
 //! Block linear arranges bytes of a texture surface into a 2D grid of blocks.
 //! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
@@ -6,16 +9,13 @@
 //!
 //! Blocks are arranged linearly in row-major order. Each block has a width of 1 GOB and a height of `block_height` many GOBs.
 //!
-//! Pixels or 4x4 pixel tiles for BCN compressed formats are arranged horizontally to form a row of `width_in_pixels * bytes_per_pixel` many bytes
-//! or `width_in_pixels / 4 * bytes_per_tile` many bytes.
-//! The surface width is rounded up to the width in blocks or 64 bytes (one GOB).
-//!
-//! The height of the surface is `height_in_pixels` many bytes for most formats and
-//! `height_in_pixels / 4` many bytes for BCN compressed formats since the tiles are arranged horizontally within the row.
+//! Pixels are arranged horizontally to form a row of `width_in_pixels * bytes_per_pixel` many bytes.
 //! The surface height is rounded up to the height in blocks or `block_height * 8` bytes.
 
 // #![no_std]
 // TODO: We don't need std since the core crate can provide the necessary memcpy operation.
+
+pub mod ffi;
 
 /// The width in bytes for a single Group of Bytes (GOB).
 const GOB_WIDTH: usize = 64;
@@ -259,9 +259,6 @@ let height = 512;
 let output = swizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
 ```
  */
-/// # Panics
-/// Panics on out of bounds accesses for `source` or `destination`.
-/// `source` is expected to have at least [deswizzled_surface_size] many bytes.
 pub fn swizzle_block_linear(
     width: usize,
     height: usize,
@@ -437,9 +434,6 @@ let height = 512;
 let output = deswizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
 ```
  */
-/// # Panics
-/// Panics on out of bounds accesses during swizzling.
-/// `source` is expected to have at least as many bytes as the result of [swizzled_surface_size].
 pub fn deswizzle_block_linear(
     width: usize,
     height: usize,
@@ -471,113 +465,6 @@ pub fn deswizzle_block_linear(
         true,
     );
     Ok(destination)
-}
-
-pub mod ffi {
-    use crate::BlockHeight;
-
-    /// Swizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
-    /// See the safe alternative [swizzle_block_linear](super::swizzle_block_linear).
-    /// # Safety
-    /// `source` and `source_len` should refer to an array with at least as many bytes as the result of [deswizzled_surface_size].
-    /// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [swizzled_surface_size].
-    #[no_mangle]
-    pub unsafe extern "C" fn swizzle_block_linear(
-        width: usize,
-        height: usize,
-        depth: usize,
-        source: *const u8,
-        source_len: usize,
-        destination: *mut u8,
-        destination_len: usize,
-        block_height: usize,
-        bytes_per_pixel: usize,
-    ) {
-        // TODO: Assert that the lengths are correct?
-        let source = std::slice::from_raw_parts(source, source_len);
-        let destination = std::slice::from_raw_parts_mut(destination, destination_len);
-
-        super::swizzle_inner(
-            width,
-            height,
-            depth,
-            source,
-            destination,
-            // TODO: Check that block_height is a valid value?
-            BlockHeight::from_int(block_height) as usize,
-            depth,
-            bytes_per_pixel,
-            false,
-        )
-    }
-
-    /// Deswizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
-    /// See the safe alternative [deswizzle_block_linear](super::deswizzle_block_linear).
-    /// # Safety
-    /// `source` and `source_len` should refer to an array with at least as many bytes as the result of [swizzled_surface_size].
-    /// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [deswizzled_surface_size].
-    #[no_mangle]
-    pub unsafe extern "C" fn deswizzle_block_linear(
-        width: usize,
-        height: usize,
-        depth: usize,
-        source: *const u8,
-        source_len: usize,
-        destination: *mut u8,
-        destination_len: usize,
-        block_height: usize,
-        bytes_per_pixel: usize,
-    ) {
-        let source = std::slice::from_raw_parts(source, source_len);
-        let destination = std::slice::from_raw_parts_mut(destination, destination_len);
-
-        super::swizzle_inner(
-            width,
-            height,
-            depth,
-            source,
-            destination,
-            BlockHeight::from_int(block_height) as usize,
-            depth,
-            bytes_per_pixel,
-            true,
-        )
-    }
-
-    /// See [swizzled_surface_size](super::swizzled_surface_size).
-    #[no_mangle]
-    pub extern "C" fn swizzled_surface_size(
-        width: usize,
-        height: usize,
-        depth: usize,
-        block_height: usize,
-        bytes_per_pixel: usize,
-    ) -> usize {
-        super::swizzled_surface_size(
-            width,
-            height,
-            depth,
-            BlockHeight::from_int(block_height),
-            bytes_per_pixel,
-        )
-    }
-
-    /// See [deswizzled_surface_size](super::deswizzled_surface_size).
-    #[no_mangle]
-    pub extern "C" fn deswizzled_surface_size(
-        width: usize,
-        height: usize,
-        depth: usize,
-        bytes_per_pixel: usize,
-    ) -> usize {
-        super::deswizzled_surface_size(width, height, depth, bytes_per_pixel)
-    }
-
-    /// See [block_height](super::block_height).
-    #[no_mangle]
-    pub extern "C" fn block_height(height: usize) -> usize {
-        super::block_height(height) as usize
-    }
 }
 
 #[cfg(test)]
