@@ -12,7 +12,7 @@ struct Input {
     width: usize,
     height: usize,
     depth: usize,
-    block_height: nutexb_swizzle::BlockHeight,
+    block_height: tegra_swizzle::BlockHeight,
     bytes_per_pixel: usize,
 }
 
@@ -30,13 +30,13 @@ impl<'a> Arbitrary<'a> for Input {
 
 fuzz_target!(|input: Input| {
     let deswizzled_size =
-        nutexb_swizzle::deswizzled_surface_size(input.width, input.height, input.depth, input.bytes_per_pixel);
+        tegra_swizzle::deswizzled_surface_size(input.width, input.height, input.depth, input.bytes_per_pixel);
 
     let seed = [13u8; 32];
     let mut rng: StdRng = SeedableRng::from_seed(seed);
     let deswizzled: Vec<_> = (0..deswizzled_size).map(|_| rng.gen_range::<u8, _>(0..=255)).collect();
 
-    let swizzled = nutexb_swizzle::swizzle_block_linear(
+    let swizzled = tegra_swizzle::swizzle_block_linear(
         input.width,
         input.height,
         input.depth,
@@ -45,7 +45,7 @@ fuzz_target!(|input: Input| {
         input.bytes_per_pixel,
     ).unwrap();
 
-    let new_deswizzled = nutexb_swizzle::deswizzle_block_linear(
+    let new_deswizzled = tegra_swizzle::deswizzle_block_linear(
         input.width,
         input.height,
         input.depth,

@@ -197,17 +197,17 @@ pub const fn deswizzled_surface_size(
 /// Non compressed formats can typically just use the height in pixels.
 /**
 ```rust
-# use nutexb_swizzle::BlockHeight;
+# use tegra_swizzle::BlockHeight;
 let height_in_pixels = 512;
-assert_eq!(BlockHeight::Sixteen, nutexb_swizzle::block_height(height_in_pixels));
+assert_eq!(BlockHeight::Sixteen, tegra_swizzle::block_height(height_in_pixels));
 ```
 */
 /// BCN formats work in 4x4 tiles instead of pixels, so divide the height by 4 since each tile is 4 pixels high.
 /**
 ```rust
-# use nutexb_swizzle::BlockHeight;
+# use tegra_swizzle::BlockHeight;
 let height_in_pixels = 512;
-assert_eq!(BlockHeight::Sixteen, nutexb_swizzle::block_height(height_in_pixels / 4));
+assert_eq!(BlockHeight::Sixteen, tegra_swizzle::block_height(height_in_pixels / 4));
 ```
 */
 pub fn block_height(height: usize) -> BlockHeight {
@@ -238,7 +238,7 @@ const fn width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
 ```rust
-use nutexb_swizzle::{BlockHeight, deswizzled_surface_size, swizzle_block_linear};
+use tegra_swizzle::{BlockHeight, deswizzled_surface_size, swizzle_block_linear};
 
 let width = 512;
 let height = 512;
@@ -250,7 +250,7 @@ let output = swizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen
 /// For compressed formats with multiple pixels in a block or tile, divide the width and height by the tile dimensions.
 /**
 ```rust
-# use nutexb_swizzle::{BlockHeight, deswizzled_surface_size, swizzle_block_linear};
+# use tegra_swizzle::{BlockHeight, deswizzled_surface_size, swizzle_block_linear};
 // BC7 has 4x4 pixel tiles that each take up 16 bytes.
 let width = 512;
 let height = 512;
@@ -413,7 +413,7 @@ fn swizzle_deswizzle_gob(
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
 ```rust
-use nutexb_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
+use tegra_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
 
 let width = 512;
 let height = 512;
@@ -425,7 +425,7 @@ let output = deswizzle_block_linear(width, height, 1, &input, BlockHeight::Sixte
 /// For compressed formats with multiple pixels in a block or tile, divide the width and height by the tile dimensions.
 /**
 ```rust
-# use nutexb_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
+# use tegra_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
 // BC7 has 4x4 pixel tiles that each take up 16 bytes.
 let width = 512;
 let height = 512;

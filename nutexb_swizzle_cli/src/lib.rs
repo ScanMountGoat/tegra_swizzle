@@ -34,9 +34,9 @@ pub fn swizzle_data(
 
     let tile_size = format.tile_size_in_bytes();
 
-    let block_height = nutexb_swizzle::block_height(height_in_tiles);
+    let block_height = tegra_swizzle::block_height(height_in_tiles);
 
-    let output_data = nutexb_swizzle::swizzle_block_linear(
+    let output_data = tegra_swizzle::swizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
         1,
@@ -75,9 +75,9 @@ pub fn deswizzle_data(
 
     let tile_size = format.tile_size_in_bytes();
 
-    let block_height = nutexb_swizzle::block_height(height_in_tiles);
+    let block_height = tegra_swizzle::block_height(height_in_tiles);
 
-    let output_data = nutexb_swizzle::deswizzle_block_linear(
+    let output_data = tegra_swizzle::deswizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
         1,

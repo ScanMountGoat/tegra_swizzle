@@ -1,6 +1,6 @@
 
 [package]
-name = "nutexb_swizzle-fuzz"
+name = "tegra_swizzle_fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
@@ -14,7 +14,7 @@ libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
 rand = "0.8.4"
 
-[dependencies.nutexb_swizzle]
+[dependencies.tegra_swizzle]
 path = ".."
 features = ["arbitrary"]
 

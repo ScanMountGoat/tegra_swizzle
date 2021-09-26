@@ -9,7 +9,7 @@ struct Input {
     width: usize,
     height: usize,
     depth: usize,
-    block_height: nutexb_swizzle::BlockHeight,
+    block_height: tegra_swizzle::BlockHeight,
     bytes_per_pixel: usize,
     input_size: usize,
 }
@@ -31,7 +31,7 @@ fuzz_target!(|input: Input| {
     let swizzled = vec![0u8; input.input_size];
 
     // This should never panic even if the input size is incorrect.
-    nutexb_swizzle::deswizzle_block_linear(
+    tegra_swizzle::deswizzle_block_linear(
         input.width,
         input.height,
         input.depth,

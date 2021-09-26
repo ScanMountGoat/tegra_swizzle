@@ -1,7 +1,11 @@
 [package]
-name = "nutexb_swizzle"
+name = "tegra_swizzle"
 version = "0.1.0"
 authors = ["ScanMountGoat <>"]
+description = "Unofficial CPU implementation for Tegra X1 swizzling"
+license = "MIT"
+documentation = "https://docs.rs/tegra_swizzle"
+repository = "https://github.com/ScanMountGoat/nutexb_swizzle"
 edition = "2018"
 
 [lib]

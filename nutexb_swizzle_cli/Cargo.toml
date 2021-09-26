@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33"
-nutexb_swizzle = { path = "../nutexb_swizzle" }
+tegra_swizzle = { path = "../tegra_swizzle" }
 binread = "2.1.1"
 binwrite = "0.2.1"
 ddsfile = "0.4.0"
