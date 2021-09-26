@@ -21,7 +21,7 @@ impl<'a> Arbitrary<'a> for Input {
         Ok(Input {
             width: u.int_in_range(0..=4096)?,
             height: u.int_in_range(0..=4096)?,
-            depth: 1,
+            depth: 1, // TODO: Test other depths?
             block_height: u.arbitrary()?,
             bytes_per_pixel: u.int_in_range(0..=32)?,
         })
