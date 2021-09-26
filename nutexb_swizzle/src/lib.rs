@@ -78,19 +78,20 @@ fn gob_address(
     y: usize,
     z: usize,
     block_height: usize,
+    block_depth: usize,
     image_width_in_gobs: usize,
     height_in_blocks: usize,
 ) -> usize {
-    let block_depth = 1; // TODO: Block depth parameter?
-
     // TODO: Benchmark moving the x,y,z components into their corresponding loops.
     let block_height_in_bytes = GOB_HEIGHT * block_height;
-    let block_size_in_bytes = GOB_SIZE * block_height;
-    let block_size_in_bytes_3d = block_size_in_bytes * block_depth;
+
+    // Blocks are always one GOB wide.
+    // TODO: Citation?
+    let block_width = 1;
+    let block_size_in_bytes = GOB_SIZE * block_width * block_height * block_depth;
 
     let block_y = y / block_height_in_bytes;
 
-    // Blocks are always one GOB wide.
     let block_x = x / GOB_WIDTH;
 
     // GOBs are stacked vertically within a block.
@@ -101,12 +102,24 @@ fn gob_address(
     // GOB1       GOB3
     let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT;
 
+    // This is the gob layout for a texture with
+    // width in gobs of 1, block height = 1, and depth = 16.
+    // GOB0    GOB16
+    // GOB1    GOB17
+    // ....    ...
+    // GOB15   GOB32
+    // Each "column" of blocks has block_depth many blocks.
+    // TODO: There's currently only a single 16x16x16 RGBA example, so this is hardcoded for now.
+    // The math seems to be based on block_depth of 16 bytes?
+    // TODO: Where does the number 512 come from?
+    let offset_z = z * 512;
+
+    let offset_y = block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE;
+
+    let offset_x = block_x * block_size_in_bytes;
+
     // Linear (row-major) block indexing.
-    z / block_depth * height_in_blocks * block_size_in_bytes_3d
-        + (z & (block_depth << 4) - 1) * block_size_in_bytes_3d
-        + block_y * block_size_in_bytes_3d * image_width_in_gobs
-        + block_x * block_size_in_bytes_3d
-        + block_inner_row * GOB_SIZE
+    offset_z + offset_y + offset_x
 }
 
 // Code taken from examples in Tegra TRM page 1188.
@@ -124,6 +137,7 @@ fn swizzled_address(
     y: usize,
     z: usize,
     block_height: usize,
+    block_depth: usize,
     image_width_in_gobs: usize,
     height_in_blocks: usize,
     bytes_per_pixel: usize,
@@ -134,6 +148,7 @@ fn swizzled_address(
         y,
         z,
         block_height,
+        block_depth,
         image_width_in_gobs,
         height_in_blocks,
     );
@@ -265,6 +280,7 @@ pub fn swizzle_block_linear(
         });
     }
 
+    // TODO: Can we assume depth is block_depth?
     swizzle_inner(
         width,
         height,
@@ -272,6 +288,7 @@ pub fn swizzle_block_linear(
         source,
         &mut destination,
         block_height as usize,
+        depth,
         bytes_per_pixel,
         false,
     );
@@ -285,6 +302,7 @@ fn swizzle_inner(
     source: &[u8],
     destination: &mut [u8],
     block_height: usize,
+    block_depth: usize,
     bytes_per_pixel: usize,
     deswizzle: bool,
 ) {
@@ -306,6 +324,7 @@ fn swizzle_inner(
                         y,
                         z,
                         block_height,
+                        block_depth,
                         image_width_in_gobs,
                         height_in_blocks,
                         bytes_per_pixel,
@@ -373,6 +392,7 @@ pub fn deswizzle_block_linear(
         });
     }
 
+    // TODO: Can we assume depth is block_depth?
     swizzle_inner(
         width,
         height,
@@ -380,6 +400,7 @@ pub fn deswizzle_block_linear(
         source,
         &mut destination,
         block_height as usize,
+        depth,
         bytes_per_pixel,
         true,
     );
@@ -418,6 +439,7 @@ pub mod ffi {
             destination,
             // TODO: Check that block_height is a valid value?
             BlockHeight::from_int(block_height) as usize,
+            depth,
             bytes_per_pixel,
             false,
         )
@@ -450,6 +472,7 @@ pub mod ffi {
             source,
             destination,
             BlockHeight::from_int(block_height) as usize,
+            depth,
             bytes_per_pixel,
             true,
         )
@@ -640,14 +663,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn deswizzle_rgba_16_16_16() {
-        // TODO: Fix the 3d case.
         let input = include_bytes!("../../swizzle_data/16_16_16_rgba_linear.bin");
         let expected = include_bytes!("../../swizzle_data/16_16_16_rgba_linear_deswizzle.bin");
         let actual = deswizzle_block_linear(16, 16, 16, input, BlockHeight::One, 4).unwrap();
-        // let elements: Vec<_> = actual.chunks(4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
-        // dbg!(&elements[128..256]);
         assert_eq!(expected, &actual[..]);
     }
 
