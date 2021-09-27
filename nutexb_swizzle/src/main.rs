@@ -1,6 +1,6 @@
 use clap::{App, AppSettings, Arg, SubCommand};
-use nutexb_swizzle_cli::formats::ImageFormat;
-use nutexb_swizzle_cli::{deswizzle, swizzle};
+use nutexb_swizzle::formats::ImageFormat;
+use nutexb_swizzle::{deswizzle, swizzle};
 use std::path::Path;
 use std::str::FromStr;
 
@@ -35,7 +35,7 @@ fn main() {
         .required(true)
         .takes_value(true);
 
-    let matches = App::new("nutexb_swizzle_cli")
+    let matches = App::new("nutexb_swizzle")
         .version("0.1")
         .author("SMG")
         .about("Reverse engineer texture swizzling from generated texture patterns.")
@@ -222,7 +222,7 @@ fn main() {
             let format = ImageFormat::from_str(format_text).unwrap();
             let normalize_indices = sub_m.is_present("normalize");
 
-            nutexb_swizzle_cli::write_lut_csv(
+            nutexb_swizzle::write_lut_csv(
                 swizzled_file,
                 deswizzled_file,
                 output,
@@ -236,7 +236,7 @@ fn main() {
             let format_text = sub_m.value_of("format").unwrap();
             let format = ImageFormat::from_str(format_text).unwrap();
 
-            nutexb_swizzle_cli::extract_mipmaps(input, output, &format);
+            nutexb_swizzle::extract_mipmaps(input, output, &format);
         }
         _ => (),
     }
@@ -267,14 +267,14 @@ fn calculate_swizzle_with_format(
     height: usize,
 ) {
     match format {
-        ImageFormat::Rgba8 => nutexb_swizzle_cli::print_swizzle_patterns::<u32, _>(
+        ImageFormat::Rgba8 => nutexb_swizzle::print_swizzle_patterns::<u32, _>(
             swizzled_file,
             deswizzled_file,
             width,
             height,
             &format,
         ),
-        ImageFormat::Bc1 => nutexb_swizzle_cli::print_swizzle_patterns::<u64, _>(
+        ImageFormat::Bc1 => nutexb_swizzle::print_swizzle_patterns::<u64, _>(
             swizzled_file,
             deswizzled_file,
             width,
@@ -282,7 +282,7 @@ fn calculate_swizzle_with_format(
             &format,
         ),
         ImageFormat::Bc3 | ImageFormat::Bc7 | ImageFormat::RgbaF32 => {
-            nutexb_swizzle_cli::print_swizzle_patterns::<u128, _>(
+            nutexb_swizzle::print_swizzle_patterns::<u128, _>(
                 swizzled_file,
                 deswizzled_file,
                 width,
@@ -308,7 +308,7 @@ fn write_addresses(sub_m: &clap::ArgMatches) {
     let mut writer = std::io::BufWriter::new(std::fs::File::create(output).unwrap());
     if output.extension().unwrap() == "nutexb" {
         // Write the appropriate data to the first miplevel of a new nutexb.
-        nutexb_swizzle_cli::create_nutexb(
+        nutexb_swizzle::create_nutexb(
             &mut writer,
             width,
             height,
@@ -323,13 +323,13 @@ fn write_addresses(sub_m: &clap::ArgMatches) {
         );
     } else {
         match format {
-            ImageFormat::Rgba8 => nutexb_swizzle_cli::write_rgba_lut(&mut writer, block_count),
+            ImageFormat::Rgba8 => nutexb_swizzle::write_rgba_lut(&mut writer, block_count),
             ImageFormat::RgbaF32 => {
-                nutexb_swizzle_cli::write_rgba_f32_lut(&mut writer, block_count)
+                nutexb_swizzle::write_rgba_f32_lut(&mut writer, block_count)
             }
-            ImageFormat::Bc1 => nutexb_swizzle_cli::write_bc1_lut(&mut writer, block_count),
-            ImageFormat::Bc3 => nutexb_swizzle_cli::write_bc3_lut(&mut writer, block_count),
-            ImageFormat::Bc7 => nutexb_swizzle_cli::write_bc7_lut(&mut writer, block_count),
+            ImageFormat::Bc1 => nutexb_swizzle::write_bc1_lut(&mut writer, block_count),
+            ImageFormat::Bc3 => nutexb_swizzle::write_bc3_lut(&mut writer, block_count),
+            ImageFormat::Bc7 => nutexb_swizzle::write_bc7_lut(&mut writer, block_count),
         }
     };
 }

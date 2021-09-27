@@ -1,5 +1,5 @@
 [package]
-name = "nutexb_swizzle_cli"
+name = "nutexb_swizzle"
 version = "0.1.0"
 authors = ["ScanMountGoat <>"]
 edition = "2018"

@@ -1,13 +1,22 @@
-# Nutexb Swizzling
+# Tegra X1 Swizzling
 <img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/swizzle3d.png" height="auto" width="100%">
+Documentation and tools for Tegra X1 swizzling for the Nintendo Switch. Textures are commonly stored in a swizzled layout for nutexb and bntx texture files. 
+The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
 
-Documentation and tools for Tegra X1 swizzling used for nutexb texture files for Smash Ultimate.  The swizzle code and bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/). The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
+## tegra_swizzle
+A safe and efficient pure Rust implementation of swizzling and deswizzling for the block linear format. 
+
+### Usage
+For using this library in a Rust project, simply add this line to the the `cargo.toml` file.    
+`tegra_swizzle = { git = "https://github.com/ScanMountGoat/nutexb_swizzle" }`
+
+For using the library in other languages through C FFI, first build the library with the Rust toolchain using `cargo build --release`. The generated `tegra_swizzle.dll` or `tegra_swizzle.so` can be used the same way as any other compiled C library. For information on function signatures, see the library documentation.
 
 ## Documentation
-See the [swizzle](swizzle.md) page for documentation on what formats and dimensions are currently supported as well as an explanation of texture swizzling. *A general purpose swizzling algorithm that correctly swizzles 2D and 3D textures of arbitrary dimensions is currently WIP. This replaces the bit patterns and lookup table approaches*.
+See the [swizzle](swizzle.md) page for an explanation of texture swizzling.
 
 ## nutexb_swizzle
-The program can automatically generate lookup tables for swizzling and deswizzling texture data based on a pair of swizzled and unswizzled image data files. For the power of two case, the lookup table can be efficiently expressed as bit patterns for the x, y, and z components of the pixel address. 
+The program can automatically generate lookup tables for swizzling and deswizzling texture data based on a pair of swizzled and unswizzled image data files. For the power of two case, the lookup table can be efficiently expressed as bit patterns for the x, y, and z components of the pixel address. The bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/).  
 
 The generated values for the "swizzled" input are unique for each unit of image data. For uncompressed RGBA data, unique values are generated per pixel. For compressed data, unique values are generated for each 4x4 pixel tile. The generated input values are the pixel or tile's linear address (width * y + x), but the program only assumes that all pixel or tile values are unique. The lookup table is computed by finding the new location of each input pixel or tile in the deswizzled output file.  This is handled automatically by correctly specifying the width, height, and format.
 

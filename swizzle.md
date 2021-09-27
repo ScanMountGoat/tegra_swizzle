@@ -34,8 +34,6 @@ Swizzle patterns to find the corresponding block index when swizzling or deswizz
 Each 4x4 tile is represented as a single 8 byte block. The starting byte address of each block requires 
 padding the address on the right with 3 bits since blocks are 8 bytes.  
 
-*TODO: Investigate sizes smaller than 16x16*
-
 | Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
 | --- | --- | --- | --- | --- | --- |
 | 8   | 8   | 2   | 2   | 00000000000001 | 000000000000010 |
@@ -54,8 +52,6 @@ padding the address on the right with 4 bits since blocks are 16 bytes.
 R32G32B32A32_Float uses the same swizzle patterns since each pixel also requires 16 bytes. 
 Since this is not a compressed format, use the tile width and tile height in the table instead. 
 For example, a 128x128 pixel R32G32B32A32_Float image will use the patterns for 512, 512, 128, 128 in the table below.
-
-*TODO: Investigate sizes smaller than 16x16*
 
 | Width (pixels) | Height (pixels) | Width (tiles) | Height (tiles) | X Pattern | Y Pattern |
 | --- | --- | --- | --- | --- | --- |
