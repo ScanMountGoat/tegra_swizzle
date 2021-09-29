@@ -1,2 +1,2 @@
 [workspace]
-members = [ "nutexb_swizzle", "nutexb_swizzle_cli" ]
+members = [ "tegra_swizzle", "nutexb_swizzle" ]
