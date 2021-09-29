@@ -6,6 +6,8 @@ use crate::BlockHeight;
 /// # Safety
 /// `source` and `source_len` should refer to an array with at least as many bytes as the result of [deswizzled_surface_size].
 /// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [swizzled_surface_size].
+///
+/// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn swizzle_block_linear(
     width: usize,
@@ -28,8 +30,7 @@ pub unsafe extern "C" fn swizzle_block_linear(
         depth,
         source,
         destination,
-        // TODO: Check that block_height is a valid value?
-        BlockHeight::from_int(block_height) as usize,
+        BlockHeight::new(block_height).unwrap() as usize,
         depth,
         bytes_per_pixel,
         false,
@@ -41,6 +42,8 @@ pub unsafe extern "C" fn swizzle_block_linear(
 /// # Safety
 /// `source` and `source_len` should refer to an array with at least as many bytes as the result of [swizzled_surface_size].
 /// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [deswizzled_surface_size].
+///
+/// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn deswizzle_block_linear(
     width: usize,
@@ -62,7 +65,7 @@ pub unsafe extern "C" fn deswizzle_block_linear(
         depth,
         source,
         destination,
-        BlockHeight::from_int(block_height) as usize,
+        BlockHeight::new(block_height).unwrap() as usize,
         depth,
         bytes_per_pixel,
         true,
@@ -70,6 +73,7 @@ pub unsafe extern "C" fn deswizzle_block_linear(
 }
 
 /// See [swizzled_surface_size](super::swizzled_surface_size).
+/// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub extern "C" fn swizzled_surface_size(
     width: usize,
@@ -82,7 +86,7 @@ pub extern "C" fn swizzled_surface_size(
         width,
         height,
         depth,
-        BlockHeight::from_int(block_height),
+        BlockHeight::new(block_height).unwrap(),
         bytes_per_pixel,
     )
 }

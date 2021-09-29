@@ -12,9 +12,6 @@
 //! Pixels are arranged horizontally to form a row of `width_in_pixels * bytes_per_pixel` many bytes.
 //! The surface height is rounded up to the height in blocks or `block_height * 8` bytes.
 
-// #![no_std]
-// TODO: We don't need std since the core crate can provide the necessary memcpy operation.
-
 pub mod ffi;
 
 /// The width in bytes for a single Group of Bytes (GOB).
@@ -57,16 +54,26 @@ pub enum SwizzleError {
 }
 
 impl BlockHeight {
-    // TODO: Make this public and add a proper error type.
-    fn from_int(v: usize) -> Self {
-        match v {
-            1 => BlockHeight::One,
-            2 => BlockHeight::Two,
-            4 => BlockHeight::Four,
-            8 => BlockHeight::Eight,
-            16 => BlockHeight::Sixteen,
-            32 => BlockHeight::ThirtyTwo,
-            _ => panic!("Unsupported block height"),
+    /// Attempts to construct a block height from `value`.
+    /// Returns [None] if `value` is not a supported block height.
+    /// # Examples
+    /**
+    ```rust
+    use tegra_swizzle::BlockHeight;
+
+    assert_eq!(Some(BlockHeight::Eight), BlockHeight::new(8));
+    assert_eq!(None, BlockHeight::new(5));
+    ```
+    */
+    pub fn new(value: usize) -> Option<Self> {
+        match value {
+            1 => Some(BlockHeight::One),
+            2 => Some(BlockHeight::Two),
+            4 => Some(BlockHeight::Four),
+            8 => Some(BlockHeight::Eight),
+            16 => Some(BlockHeight::Sixteen),
+            32 => Some(BlockHeight::ThirtyTwo),
+            _ => None,
         }
     }
 }
@@ -82,15 +89,13 @@ fn gob_address_z(z: usize) -> usize {
     // TODO: There's currently only a single 16x16x16 RGBA example, so this is hardcoded for now.
     // The math seems to be based on block_depth of 16 bytes?
     // TODO: Where does the number 512 come from?
-    let offset_z = z * 512;
-    offset_z
+    z * 512
 }
 
 // Code for offset_x and offset_y adapted from examples in the Tegra TRM page 1187.
 fn gob_address_x(x: usize, block_size_in_bytes: usize) -> usize {
     let block_x = x / GOB_WIDTH;
-    let offset_x = block_x * block_size_in_bytes;
-    offset_x
+    block_x * block_size_in_bytes
 }
 
 fn gob_address_y(
@@ -101,8 +106,7 @@ fn gob_address_y(
 ) -> usize {
     let block_y = y / block_height_in_bytes;
     let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT;
-    let offset_y = block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE;
-    offset_y
+    block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE
 }
 
 // Code taken from examples in Tegra TRM page 1188.
@@ -112,6 +116,8 @@ fn gob_offset(x: usize, y: usize) -> usize {
     // TODO: Describe the pattern here?
     ((x % 64) / 32) * 256 + ((y % 8) / 2) * 64 + ((x % 32) / 16) * 32 + (y % 2) * 16 + (x % 16)
 }
+
+// TODO: Investigate using macros to generate this code.
 
 // An optimized version of the gob_offset for an entire GOB worth of bytes.
 // The swizzled GOB is a contiguous region of 512 bytes.
@@ -463,7 +469,6 @@ fn swizzle_deswizzle_gob(
                     + x0
                     + x;
 
-                // TODO: Does this condition optimize out since we specify it at compile time?
                 // Swap the addresses for swizzling vs deswizzling.
                 if deswizzle {
                     destination[linear_offset] = source[swizzled_offset];
