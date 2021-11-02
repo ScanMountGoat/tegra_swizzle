@@ -542,7 +542,7 @@ mod tests {
     #[test]
     fn swizzle_deswizzle_bc7_64_64() {
         // Test an even size.
-        let swizzled = include_bytes!("../../swizzle_data/64_bc7_linear.bin");
+        let swizzled = include_bytes!("../../swizzle_data/64_bc7_swizzled.bin");
         let deswizzled =
             deswizzle_block_linear(64 / 4, 64 / 4, 1, swizzled, BlockHeight::Two, 16).unwrap();
 
@@ -553,8 +553,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_64_64() {
-        let input = include_bytes!("../../swizzle_data/64_bc7_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/64_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/64_bc7_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/64_bc7_deswizzled.bin");
         let actual =
             deswizzle_block_linear(64 / 4, 64 / 4, 1, input, BlockHeight::Two, 16).unwrap();
 
@@ -563,8 +563,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc1_128_128() {
-        let input = include_bytes!("../../swizzle_data/128_bc1_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/128_bc1_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_bc1_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc1_deswizzled.bin");
         let actual =
             deswizzle_block_linear(128 / 4, 128 / 4, 1, input, BlockHeight::Four, 8).unwrap();
 
@@ -573,8 +573,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc3_128_128() {
-        let input = include_bytes!("../../swizzle_data/128_bc3_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/128_bc3_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_bc3_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc3_deswizzled.bin");
         let actual =
             deswizzle_block_linear(128 / 4, 128 / 4, 1, input, BlockHeight::Four, 16).unwrap();
 
@@ -583,8 +583,8 @@ mod tests {
 
     #[test]
     fn deswizzle_rgba_f32_128_128() {
-        let input = include_bytes!("../../swizzle_data/128_rgbaf32_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/128_rgbaf32_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_rgbaf32_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/128_rgbaf32_deswizzled.bin");
         let actual = deswizzle_block_linear(128, 128, 1, input, BlockHeight::Sixteen, 16).unwrap();
 
         assert_eq!(expected, &actual[..]);
@@ -592,8 +592,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_128_128() {
-        let input = include_bytes!("../../swizzle_data/128_bc7_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/128_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/128_bc7_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/128_bc7_deswizzled.bin");
         let actual =
             deswizzle_block_linear(128 / 4, 128 / 4, 1, input, BlockHeight::Four, 16).unwrap();
 
@@ -602,8 +602,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_256_256() {
-        let input = include_bytes!("../../swizzle_data/256_bc7_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/256_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/256_bc7_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/256_bc7_deswizzled.bin");
         let actual =
             deswizzle_block_linear(256 / 4, 256 / 4, 1, input, BlockHeight::Eight, 16).unwrap();
 
@@ -612,8 +612,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_320_320() {
-        let input = include_bytes!("../../swizzle_data/320_bc7_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/320_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/320_bc7_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/320_bc7_deswizzled.bin");
         let actual =
             deswizzle_block_linear(320 / 4, 320 / 4, 1, input, BlockHeight::Eight, 16).unwrap();
 
@@ -622,8 +622,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_512_512() {
-        let input = include_bytes!("../../swizzle_data/512_bc7_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/512_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/512_bc7_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/512_bc7_deswizzled.bin");
         let actual =
             deswizzle_block_linear(512 / 4, 512 / 4, 1, input, BlockHeight::Sixteen, 16).unwrap();
 
@@ -632,8 +632,8 @@ mod tests {
 
     #[test]
     fn deswizzle_bc7_1024_1024() {
-        let input = include_bytes!("../../swizzle_data/1024_bc7_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/1024_bc7_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/1024_bc7_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/1024_bc7_deswizzled.bin");
         let actual =
             deswizzle_block_linear(1024 / 4, 1024 / 4, 1, input, BlockHeight::Sixteen, 16).unwrap();
 
@@ -642,8 +642,8 @@ mod tests {
 
     #[test]
     fn deswizzle_rgba_16_16_16() {
-        let input = include_bytes!("../../swizzle_data/16_16_16_rgba_linear.bin");
-        let expected = include_bytes!("../../swizzle_data/16_16_16_rgba_linear_deswizzle.bin");
+        let input = include_bytes!("../../swizzle_data/16_16_16_rgba_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/16_16_16_rgba_deswizzled.bin");
         let actual = deswizzle_block_linear(16, 16, 16, input, BlockHeight::One, 4).unwrap();
         assert_eq!(expected, &actual[..]);
     }
