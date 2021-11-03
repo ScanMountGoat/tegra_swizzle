@@ -123,8 +123,8 @@ fn gob_offset(x: usize, y: usize) -> usize {
 // The swizzled GOB is a contiguous region of 512 bytes.
 // The deswizzled GOB is a 64x8 2D region of memory, so we need to account for the pitch.
 fn deswizzle_complete_gob(dst: &mut [u8], src: &[u8], row_size_in_bytes: usize) {
-    // Hard code each of the GOB_HEIGHT rows.
-    // This allows the compiler to optimize the copies.
+    // Hard code each of the GOB_HEIGHT many rows.
+    // This allows the compiler to optimize the copies with SIMD instructions.
     deswizzle_gob_row(dst, row_size_in_bytes * 0, src, 0);
     deswizzle_gob_row(dst, row_size_in_bytes * 1, src, 16);
     deswizzle_gob_row(dst, row_size_in_bytes * 2, src, 64);
@@ -160,7 +160,6 @@ fn swizzle_complete_gob(dst: &mut [u8], src: &[u8], row_size_in_bytes: usize) {
 fn swizzle_gob_row(dst: &mut [u8], dst_offset: usize, src: &[u8], src_offset: usize) {
     let dst = &mut dst[dst_offset..];
     let src = &src[src_offset..];
-    // Start with the largest offset first to reduce bounds checks.
     dst[288..304].copy_from_slice(&src[48..64]);
     dst[256..272].copy_from_slice(&src[32..48]);
     dst[32..48].copy_from_slice(&src[16..32]);
@@ -387,7 +386,7 @@ fn swizzle_inner(
 
     // Convert the pixel x,y,z coordinates to byte coordinates in the surface.
     // Stepping by a GOB of bytes a time enables optimizing the inner loop.
-    // This works because swizzling is defined in terms of x,y,z byte coordinates.
+    // This works because swizzling uses byte coordinates rather than pixel coordinates.
     for z0 in 0..depth {
         let offset_z = gob_address_z(z0);
 
@@ -408,6 +407,7 @@ fn swizzle_inner(
 
                 // Check if the current GOB is filled in the input and output.
                 // In practice, many surfaces will have integral dimensions in gobs.
+                // This allows us to copy 16 bytes at a time for each 512 byte GOB.
                 if x0 + GOB_WIDTH < width * bytes_per_pixel && y0 + GOB_HEIGHT < height {
                     let linear_offset = (z0 * width * height * bytes_per_pixel)
                         + (y0 * width * bytes_per_pixel)
@@ -517,9 +517,9 @@ mod tests {
 
     #[test]
     fn swizzle_empty() {
-        let err = swizzle_block_linear(32, 32, 1, &[], BlockHeight::Sixteen, 4);
+        let result = swizzle_block_linear(32, 32, 1, &[], BlockHeight::Sixteen, 4);
         assert!(matches!(
-            err,
+            result,
             Err(SwizzleError::NotEnoughData {
                 actual_size: 0,
                 expected_size: 4096
@@ -529,12 +529,44 @@ mod tests {
 
     #[test]
     fn deswizzle_empty() {
-        let err = deswizzle_block_linear(32, 32, 1, &[], BlockHeight::Sixteen, 4);
+        let result = deswizzle_block_linear(32, 32, 1, &[], BlockHeight::Sixteen, 4);
         assert!(matches!(
-            err,
+            result,
             Err(SwizzleError::NotEnoughData {
                 actual_size: 0,
                 expected_size: 16384
+            })
+        ));
+    }
+
+    #[test]
+    fn swizzle_bc7_64_64_not_enough_data() {
+        let result = swizzle_block_linear(
+            64 / 4,
+            64 / 4,
+            1,
+            &vec![0u8; 64 * 64 - 1],
+            BlockHeight::Sixteen,
+            16,
+        );
+        assert!(matches!(
+            result,
+            Err(SwizzleError::NotEnoughData {
+                actual_size: 4095,
+                expected_size: 4096
+            })
+        ));
+    }
+
+    #[test]
+    fn deswizzle_bc7_64_64_not_enough_data() {
+        let result =
+            deswizzle_block_linear(64 / 4, 64 / 4, 1, &[0u8; 64 * 64], BlockHeight::Sixteen, 16);
+        assert!(matches!(
+            result,
+            Err(SwizzleError::NotEnoughData {
+                actual_size: 4096,
+                expected_size: 32768
             })
         ));
     }
