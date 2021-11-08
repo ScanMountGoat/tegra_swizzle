@@ -13,15 +13,12 @@
 //! The surface height is rounded up to the height in blocks or `block_height * 8` bytes.
 
 pub mod ffi;
+mod blockheight;
+pub use blockheight::*;
 
-/// The width in bytes for a single Group of Bytes (GOB).
-const GOB_WIDTH: usize = 64;
-
-/// The height in bytes for a single Group of Bytes (GOB).
-const GOB_HEIGHT: usize = 8;
-
-/// The size in bytes for a single Group of Bytes (GOB).
-const GOB_SIZE: usize = GOB_WIDTH * GOB_HEIGHT;
+const GOB_WIDTH_IN_BYTES: usize = 64;
+const GOB_HEIGHT_IN_BYTES: usize = 8;
+const GOB_SIZE_IN_BYTES: usize = GOB_WIDTH_IN_BYTES * GOB_HEIGHT_IN_BYTES;
 
 // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
 
@@ -94,7 +91,7 @@ fn gob_address_z(z: usize) -> usize {
 
 // Code for offset_x and offset_y adapted from examples in the Tegra TRM page 1187.
 fn gob_address_x(x: usize, block_size_in_bytes: usize) -> usize {
-    let block_x = x / GOB_WIDTH;
+    let block_x = x / GOB_WIDTH_IN_BYTES;
     block_x * block_size_in_bytes
 }
 
@@ -105,8 +102,8 @@ fn gob_address_y(
     image_width_in_gobs: usize,
 ) -> usize {
     let block_y = y / block_height_in_bytes;
-    let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT;
-    block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE
+    let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT_IN_BYTES;
+    block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE_IN_BYTES
 }
 
 // Code taken from examples in Tegra TRM page 1188.
@@ -199,11 +196,11 @@ pub const fn swizzled_surface_size(
 ) -> usize {
     let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
     let height_in_blocks = height_in_blocks(height, block_height as usize);
-    width_in_gobs * height_in_blocks * block_height as usize * GOB_SIZE * depth
+    width_in_gobs * height_in_blocks * block_height as usize * GOB_SIZE_IN_BYTES * depth
 }
 
 const fn height_in_blocks(height: usize, block_height: usize) -> usize {
-    div_round_up(height, block_height * GOB_HEIGHT)
+    div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES)
 }
 
 /// Calculates the size in bytes for the deswizzled data for the given dimensions.
@@ -243,7 +240,7 @@ const fn div_round_up(x: usize, d: usize) -> usize {
 }
 
 const fn width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
-    div_round_up(width * bytes_per_pixel, GOB_WIDTH)
+    div_round_up(width * bytes_per_pixel, GOB_WIDTH_IN_BYTES)
 }
 
 /// Swizzles the bytes from `source` using the block linear swizzling algorithm.
@@ -381,8 +378,8 @@ fn swizzle_inner(
     // Blocks are always one GOB wide.
     // TODO: Citation?
     let block_width = 1;
-    let block_size_in_bytes = GOB_SIZE * block_width * block_height * block_depth;
-    let block_height_in_bytes = GOB_HEIGHT * block_height;
+    let block_size_in_bytes = GOB_SIZE_IN_BYTES * block_width * block_height * block_depth;
+    let block_height_in_bytes = GOB_HEIGHT_IN_BYTES * block_height;
 
     // Convert the pixel x,y,z coordinates to byte coordinates in the surface.
     // Stepping by a GOB of bytes a time enables optimizing the inner loop.
@@ -391,7 +388,7 @@ fn swizzle_inner(
         let offset_z = gob_address_z(z0);
 
         // Step by a GOB of bytes in y.
-        for y0 in (0..height).step_by(GOB_HEIGHT) {
+        for y0 in (0..height).step_by(GOB_HEIGHT_IN_BYTES) {
             let offset_y = gob_address_y(
                 y0,
                 block_height_in_bytes,
@@ -400,7 +397,7 @@ fn swizzle_inner(
             );
 
             // Step by a GOB of bytes in x.
-            for x0 in (0..(width * bytes_per_pixel)).step_by(GOB_WIDTH) {
+            for x0 in (0..(width * bytes_per_pixel)).step_by(GOB_WIDTH_IN_BYTES) {
                 let offset_x = gob_address_x(x0, block_size_in_bytes);
 
                 let gob_address = offset_z + offset_y + offset_x;
@@ -408,7 +405,9 @@ fn swizzle_inner(
                 // Check if the current GOB is filled in the input and output.
                 // In practice, many surfaces will have integral dimensions in gobs.
                 // This allows us to copy 16 bytes at a time for each 512 byte GOB.
-                if x0 + GOB_WIDTH < width * bytes_per_pixel && y0 + GOB_HEIGHT < height {
+                if x0 + GOB_WIDTH_IN_BYTES < width * bytes_per_pixel
+                    && y0 + GOB_HEIGHT_IN_BYTES < height
+                {
                     let linear_offset = (z0 * width * height * bytes_per_pixel)
                         + (y0 * width * bytes_per_pixel)
                         + x0;
@@ -460,8 +459,8 @@ fn swizzle_deswizzle_gob(
     gob_address: usize,
     deswizzle: bool,
 ) {
-    for y in 0..GOB_HEIGHT {
-        for x in 0..GOB_WIDTH {
+    for y in 0..GOB_HEIGHT_IN_BYTES {
+        for x in 0..GOB_WIDTH_IN_BYTES {
             if y0 + y < height && x0 + x < width * bytes_per_pixel {
                 let swizzled_offset = gob_address + gob_offset(x, y);
                 let linear_offset = (z0 * width * height * bytes_per_pixel)
