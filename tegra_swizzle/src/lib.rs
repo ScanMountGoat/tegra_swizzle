@@ -12,8 +12,8 @@
 //! Pixels are arranged horizontally to form a row of `width_in_pixels * bytes_per_pixel` many bytes.
 //! The surface height is rounded up to the height in blocks or `block_height * 8` bytes.
 
-pub mod ffi;
 mod blockheight;
+pub mod ffi;
 pub use blockheight::*;
 
 const GOB_WIDTH_IN_BYTES: usize = 64;
@@ -26,7 +26,7 @@ const GOB_SIZE_IN_BYTES: usize = GOB_WIDTH_IN_BYTES * GOB_HEIGHT_IN_BYTES;
 ///
 /// Texture file formats differ in how they encode the block height parameter.
 /// Some formats may encode block height using log2, so a block height of 8 would be encoded as 3.
-/// Other formats may infer the block height based on texture dimensions and other factors.
+/// For formats that do not explicitly store block height, see [block_height_mip0].
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum BlockHeight {
@@ -182,9 +182,14 @@ assert_eq!(262144, swizzled_surface_size(width, height, 1, BlockHeight::Sixteen,
 ```rust
 # use tegra_swizzle::{BlockHeight, swizzled_surface_size};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
+use tegra_swizzle::div_round_up;
+
 let width = 256;
 let height = 256;
-assert_eq!(131072, swizzled_surface_size(width / 4, height / 4, 1, BlockHeight::Sixteen, 16));
+assert_eq!(
+    131072,
+    swizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, BlockHeight::Sixteen, 16)
+);
 ```
  */
 pub const fn swizzled_surface_size(
@@ -221,9 +226,14 @@ assert_eq!(262144, deswizzled_surface_size(width, height, 1, 4));
 ```rust
 # use tegra_swizzle::{BlockHeight, deswizzled_surface_size};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
+use tegra_swizzle::div_round_up;
+
 let width = 256;
 let height = 256;
-assert_eq!(65536, deswizzled_surface_size(width / 4, height / 4, 1, 16));
+assert_eq!(
+    65536,
+    deswizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, 16)
+);
 ```
  */
 pub const fn deswizzled_surface_size(
@@ -235,7 +245,24 @@ pub const fn deswizzled_surface_size(
     width * height * depth * bytes_per_pixel
 }
 
-const fn div_round_up(x: usize, d: usize) -> usize {
+/// Calculates the division of `x` by `d` but rounds up rather than truncating.
+///
+/// # Examples
+/// Use this function when calculating dimensions for block compressed formats like BC7.
+/**
+```rust
+# use tegra_swizzle::div_round_up;
+let height_in_pixels = 300;
+let width_in_pixels = 128;
+let mipmap_count = 4;
+
+for mip in 0..mipmap_count {
+    let mip_width = div_round_up(height_in_pixels >> mip, 4);
+    let mip_height = div_round_up(width_in_pixels >> mip, 4);
+}
+```
+ */
+pub const fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
 }
 
@@ -262,11 +289,20 @@ let output = swizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen
 ```rust
 # use tegra_swizzle::{BlockHeight, deswizzled_surface_size, swizzle_block_linear};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
+use tegra_swizzle::div_round_up;
+
 let width = 512;
 let height = 512;
-# let size = deswizzled_surface_size(width / 4, height / 4, 1, 16);
+# let size = deswizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, 16);
 # let input = vec![0u8; size];
-let output = swizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
+let output = swizzle_block_linear(
+    div_round_up(width, 4),
+    div_round_up(height, 4),
+    1,
+    &input,
+    BlockHeight::Sixteen,
+    16,
+);
 ```
  */
 pub fn swizzle_block_linear(
@@ -322,11 +358,20 @@ let output = deswizzle_block_linear(width, height, 1, &input, BlockHeight::Sixte
 ```rust
 # use tegra_swizzle::{BlockHeight, swizzled_surface_size, deswizzle_block_linear};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
+use tegra_swizzle::div_round_up;
+
 let width = 512;
 let height = 512;
-# let size = swizzled_surface_size(width / 4, height / 4, 1, BlockHeight::Sixteen, 16);
+# let size = swizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, BlockHeight::Sixteen, 16);
 # let input = vec![0u8; size];
-let output = deswizzle_block_linear(width / 4, height / 4, 1, &input, BlockHeight::Sixteen, 16);
+let output = deswizzle_block_linear(
+    div_round_up(width, 4),
+    div_round_up(height, 4),
+    1,
+    &input,
+    BlockHeight::Sixteen,
+    16,
+);
 ```
  */
 pub fn deswizzle_block_linear(
