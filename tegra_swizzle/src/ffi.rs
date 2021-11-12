@@ -101,3 +101,16 @@ pub extern "C" fn deswizzled_surface_size(
 ) -> usize {
     super::deswizzled_surface_size(width, height, depth, bytes_per_pixel)
 }
+
+/// See [block_height_mip0](super::block_height_mip0).
+#[no_mangle]
+pub extern "C" fn block_height_mip0(height: usize) -> usize {
+    super::block_height_mip0(height) as usize
+}
+
+/// See [mip_block_height](super::mip_block_height).
+/// `block_height_mip0` must be one of the supported values in [BlockHeight].
+#[no_mangle]
+pub extern "C" fn mip_block_height(mip_height: usize, block_height_mip0: usize) -> usize {
+    super::mip_block_height(mip_height, BlockHeight::new(block_height_mip0).unwrap()) as usize
+}
