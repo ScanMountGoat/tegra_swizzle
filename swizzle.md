@@ -1,4 +1,5 @@
 # Swizzling
+## Introduction
 The Nutexb/Tegra X1 texture swizzling can be described as a swizzle function `S: I -> O` where `I` is the set of linear input addresses and `O` is the set of swizzled output addresses. The function `S` maps or "swizzles" a pixel address in `I` to some corresponding address in `O`. The operation of mapping swizzled addresses in `O` to their original linear address in `I` is called "deswizzling". 
 
 In the case where the texture is square and both dimensions are a power of two, the function `S` is bijective. Being bijective means that each input address is mapped to a unique output address. This also implies the sets `S` and `O` have the same number of elements. `S` and `O` have the same size, and no two inputs are mapped to the same output, so it's possible to perform swizzling and deswizzling in place without any memory allocations.  
@@ -7,15 +8,21 @@ The case for general texture dimensions is not as trivial. The function `S` is s
 
 For deswizzling in the general case, the problem of `I` and `O` having a different number of elements can be solved by considering the elements of `I`. Rather than mapping swizzled addresses to linear addresses, we can map linear addresses to swizzled addresses since each linear address has a corresponding swizzled address since `S` is injective. This means the function `S` can be reused to perform both swizzling and deswizzling by swapping the input addresses. In this case, the swizzling and deswizzling only requires a single allocation for the output.  
 
-This means that only the swizzle function `S` needs to be defined for the appropriate formats and dimensions. The swizzle function depends on the width in elements, height in elements, and size of each element. The elements can be defined to be pixels, blocks, or tiles as long as the width and height are calculated appropriately. 
-
-In the general case, this transformation can be represented as a lookup table for input and output addresses. Creating an efficient way to compute the non power of two case is still a work in progress. See the [swizzle_data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for input output pairs for deswizzling. The `..._linear.bin` files are the input files and the `..._linear_deswizzle.bin` files are the result of deswizzling the input.
+This means that only the swizzle function `S` needs to be defined. In the general case, this transformation can be represented as a lookup table for input and output addresses. See the [swizzle_data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for input output pairs for deswizzling.  
 
 For the power of two case, `S` can be represented more efficiently as bit patterns for the x and y components of the address. See the [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) for details.
 
+## Implementations
+The evolution of techniques used for this repository are listed below. Note that later techniques tend to add additional complexity but generalize to more inputs.
+1. lookup tables for specific width, height, and bytes per pixel values.
+2. generated bit patterns as a more efficient encoding of lookup tables for power of two textures
+3. A naive implementation of the swizzle function defined in the Tegra X1 TRM. Note that this is defined over byte coordinates x,y and not pixel coordinates. This means the same 
+code can be applied to arbitrary formats since their block sizes and bytes per pixel simply define the transformation from pixel to byte coordinates.
+4. An optimized implementation of the swizzle function that compiles to SIMD instructions on supported platforms. The current implementation applies an optimized loop over 
+64x8 byte tiles (GOBs) and uses the naive implementation to handle the remaining bytes. 
 
 ## Swizzle Patterns
-Swizzling can be grouped into three separate block sizes that cover all the current Nutexb formats. Formats can have either 4 bytes, 8 bytes, or 16 bytes per block. For uncompressed formats, pixels are treated as blocks.
+Nutexb formats have either 4 bytes, 8 bytes, or 16 bytes per block. For uncompressed formats, pixels are treated as blocks.
 
 ### Block 4 Swizzle Patterns (R8G8B8A8, B8G8R8A8)
 Swizzle patterns to find the corresponding pixel address when swizzing or deswizzling.  

@@ -4,21 +4,21 @@ Documentation and tools for Tegra X1 swizzling for the Nintendo Switch. Textures
 The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
 
 ## tegra_swizzle 
-[![Latest Version](https://img.shields.io/crates/v/tegra_swizzle.svg)]
-[![docs.rs](https://docs.rs/tegra_swizzle/badge.svg)](https://docs.rs/tegra_swizzle)
+[![Latest Version](https://img.shields.io/crates/v/tegra_swizzle.svg)](https://crates.io/crates/tegra_swizzle) [![docs.rs](https://docs.rs/tegra_swizzle/badge.svg)](https://docs.rs/tegra_swizzle)
 
 A safe and efficient pure Rust implementation of swizzling and deswizzling for the block linear format. 
 
 ### C FFI 
-For using the library in other languages through C FFI, first build the library with the Rust toolchain using `cargo build --release`. 
-The generated `tegra_swizzle.dll` or `tegra_swizzle.so` can be used the same way as any other compiled C library. 
-For information on function signatures, see the library documentation.
+For using the library in other languages through C FFI, first build the library with `cargo build --release`. This requires the Rust toolchain to be installed.  
+
+The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. For information on function signatures, see the FFI documentation in the docs.rs link above.
 
 ## Test Data
-
+This repository contains [sample data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for testing swizzling and deswizzling. These files were generated using the swizzling implementation for the Yuzu emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   
 
 ## Documentation
-See the [swizzle](swizzle.md) page for an explanation of texture swizzling.
+See the [swizzle](swizzle.md) page for a more formal description of swizzling. While not rigorous enough to be considered a proof, this helps motivate some of the techniques and optimizations applied to this library. The following [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) also provides some additional insights into swizzling. 
+Note that the technique used in this implementation differs from those described in the post.  
 
 ## nutexb_swizzle
 The program can automatically generate lookup tables for swizzling and deswizzling texture data based on a pair of swizzled and unswizzled image data files. For the power of two case, the lookup table can be efficiently expressed as bit patterns for the x, y, and z components of the pixel address. The bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/).  
