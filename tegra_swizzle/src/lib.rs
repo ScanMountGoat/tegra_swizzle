@@ -1,17 +1,67 @@
+//! # tegra_swizzle
+//! tegra_swizzle is an unofficial CPU implementation for Tegra X1 surface swizzling.
+//! 
+//! # Getting Started
+//! The following example demonstrates deswizzling mipmaps for a BC7 compressed 2D surface.
+//! BC7 has 4x4 pixel blocks that each take up 16 bytes.
+//! For uncompressed formats like R8G8B8A8, the [div_round_up] calls are unnecessary.
+//!
+//! ```rust no_run
+//! use tegra_swizzle::{
+//!     block_height_mip0, deswizzle_block_linear, div_round_up, mip_block_height,
+//!     swizzled_surface_size
+//! };
+//! # fn main() -> Result<(), tegra_swizzle::SwizzleError> {
+//! # let image_data = vec![0u8; 4];
+//! # let height = 300;
+//! # let width = 128;
+//! # let mipmap_count = 5;
+//!
+//! // Infer the block height if the surface doesn't specify one.
+//! let block_height_mip0 = block_height_mip0(div_round_up(height, 4));
+//!
+//! // It's common for all mipmaps to be stored in a contiguous region on disk.
+//! // We'll simply update the starting offset for each level.
+//! let mut offset = 0;
+//! for mip in 0..mipmap_count {
+//!     let mip_width = div_round_up(width >> mip, 4);
+//!     let mip_height = div_round_up(height >> mip, 4);
+//!
+//!     // The block height will likely change for each mip level.
+//!     let mip_block_height = mip_block_height(mip_height, block_height_mip0);
+//!
+//!     let deswizzled_mipmap = deswizzle_block_linear(
+//!         mip_width,
+//!         mip_height,
+//!         1,
+//!         &image_data[offset..],
+//!         mip_block_height,
+//!         16,
+//!     )?;
+//!
+//!     offset += swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, 16);
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Block Linear Swizzling
 //! The [swizzle_block_linear] and [deswizzle_block_linear] functions
 //! implement safe and efficient swizzling for the Tegra X1's block linear format.
-//! *2D surfaces are fully supported with minimal support for 3D surfaces.
-//! Depth values other than 1 are not guaranteed to work properly at this time.*
 //!
-//! Block linear arranges bytes of a texture surface into a 2D grid of blocks.
+//! Block linear arranges bytes of a texture surface into a 2D grid of blocks
+//! where blocks are arranged linearly in row-major order.
+//! The swizzled surface size is padded to integral dimensions in blocks, so
+//! swizzled surfaces may be larger than the corresponding data in row-major order.
+//!
 //! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.
 //!
-//! Blocks are arranged linearly in row-major order. Each block has a width of 1 GOB and a height of `block_height` many GOBs.
-//!
-//! Pixels are arranged horizontally to form a row of `width_in_pixels * bytes_per_pixel` many bytes.
-//! The surface height is rounded up to the height in blocks or `block_height * 8` bytes.
-
+//! # Limitations
+//! 2D surfaces are fully supported with minimal support for 3D surfaces.
+//! Array textures such as cube maps may require additional alignment to work properly.
+//! Depth values other than 1 are not guaranteed to work properly at this time.
+//! These limitations should hopefully be fixed in a future release.
 mod blockheight;
 pub mod ffi;
 pub use blockheight::*;
@@ -252,14 +302,17 @@ pub const fn deswizzled_surface_size(
 /**
 ```rust
 # use tegra_swizzle::div_round_up;
-let height_in_pixels = 300;
-let width_in_pixels = 128;
-let mipmap_count = 4;
-
-for mip in 0..mipmap_count {
-    let mip_width = div_round_up(height_in_pixels >> mip, 4);
-    let mip_height = div_round_up(width_in_pixels >> mip, 4);
-}
+assert_eq!(8, div_round_up(8, 4));
+assert_eq!(12, div_round_up(10, 4));
+```
+ */
+/// Uncompressed formats are equivalent to 1x1 pixel blocks.
+/// The call to [div_round_up] can simply be ommitted in these cases.
+/**
+```rust
+# use tegra_swizzle::div_round_up;
+let n = 10;
+assert_eq!(n, div_round_up(n, 1));
 ```
  */
 pub const fn div_round_up(x: usize, d: usize) -> usize {

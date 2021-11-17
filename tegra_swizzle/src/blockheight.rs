@@ -22,7 +22,7 @@ let block_height_mip0 = block_height_mip0(height);
 /**
 ```rust
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
-# use tegra_swizzle::{block_height_mip0, div_round_up, mip_block_height};
+# use tegra_swizzle::{block_height_mip0, mip_block_height};
 use tegra_swizzle::{div_round_up};
 
 let height = 300;
