@@ -3,14 +3,19 @@
 Documentation and tools for Tegra X1 swizzling for the Nintendo Switch. Textures are commonly stored in a swizzled layout for nutexb and bntx texture files. 
 The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
 
-## tegra_swizzle
+## tegra_swizzle 
+[![Latest Version](https://img.shields.io/crates/v/tegra_swizzle.svg)]
+[![docs.rs](https://docs.rs/tegra_swizzle/badge.svg)](https://docs.rs/tegra_swizzle)
+
 A safe and efficient pure Rust implementation of swizzling and deswizzling for the block linear format. 
 
-### Usage
-For using this library in a Rust project, simply add this line to the the `cargo.toml` file.    
-`tegra_swizzle = { git = "https://github.com/ScanMountGoat/nutexb_swizzle" }`
+### C FFI 
+For using the library in other languages through C FFI, first build the library with the Rust toolchain using `cargo build --release`. 
+The generated `tegra_swizzle.dll` or `tegra_swizzle.so` can be used the same way as any other compiled C library. 
+For information on function signatures, see the library documentation.
 
-For using the library in other languages through C FFI, first build the library with the Rust toolchain using `cargo build --release`. The generated `tegra_swizzle.dll` or `tegra_swizzle.so` can be used the same way as any other compiled C library. For information on function signatures, see the library documentation.
+## Test Data
+
 
 ## Documentation
 See the [swizzle](swizzle.md) page for an explanation of texture swizzling.
