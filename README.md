@@ -1,7 +1,8 @@
 # Tegra X1 Swizzling
 <img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/swizzle3d.png" height="auto" width="100%">
+<img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/deswizzled3d.png" height="auto" width="100%">
 Documentation and tools for Tegra X1 swizzling for the Nintendo Switch. Textures are commonly stored in a swizzled layout for nutexb and bntx texture files. 
-The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The properly deswizzled version can be found on the [Smush-Lut repo](https://github.com/ScanMountGoat/Smush-LUT).
+The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The deswizzled version is shown below.
 
 ## tegra_swizzle 
 [![Latest Version](https://img.shields.io/crates/v/tegra_swizzle.svg)](https://crates.io/crates/tegra_swizzle) [![docs.rs](https://docs.rs/tegra_swizzle/badge.svg)](https://docs.rs/tegra_swizzle)
