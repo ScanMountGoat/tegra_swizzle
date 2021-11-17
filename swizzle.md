@@ -8,9 +8,9 @@ The case for general texture dimensions is not as trivial. The function `S` is s
 
 For deswizzling in the general case, the problem of `I` and `O` having a different number of elements can be solved by considering the elements of `I`. Rather than mapping swizzled addresses to linear addresses, we can map linear addresses to swizzled addresses since each linear address has a corresponding swizzled address since `S` is injective. This means the function `S` can be reused to perform both swizzling and deswizzling by swapping the input addresses. In this case, the swizzling and deswizzling only requires a single allocation for the output.  
 
-This means that only the swizzle function `S` needs to be defined. In the general case, this transformation can be represented as a lookup table for input and output addresses. See the [swizzle_data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for input output pairs for deswizzling.  
+This means that only the swizzle function `S` needs to be defined. For a specific pair of swizzled and deswizzled images, this transformation can be represented as a lookup table for input and output addresses. See the [swizzle_data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for input output pairs for swizzling and deswizzling.  
 
-For the power of two case, `S` can be represented more efficiently as bit patterns for the x and y components of the address. See the [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) for details.
+For the power of two case, `S` can be represented with drastically less memory using bit patterns for the x and y components of the address. See the [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) for details.
 
 ## Implementations
 The evolution of techniques used for this repository are listed below. Note that later techniques tend to add additional complexity but generalize to more inputs.
