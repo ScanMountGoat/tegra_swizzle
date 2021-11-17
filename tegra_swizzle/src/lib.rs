@@ -1,6 +1,6 @@
 //! # tegra_swizzle
 //! tegra_swizzle is an unofficial CPU implementation for Tegra X1 surface swizzling.
-//! 
+//!
 //! # Getting Started
 //! The following example demonstrates deswizzling mipmaps for a BC7 compressed 2D surface.
 //! BC7 has 4x4 pixel blocks that each take up 16 bytes.
@@ -302,8 +302,8 @@ pub const fn deswizzled_surface_size(
 /**
 ```rust
 # use tegra_swizzle::div_round_up;
-assert_eq!(8, div_round_up(8, 4));
-assert_eq!(12, div_round_up(10, 4));
+assert_eq!(2, div_round_up(8, 4));
+assert_eq!(3, div_round_up(10, 4));
 ```
  */
 /// Uncompressed formats are equivalent to 1x1 pixel blocks.

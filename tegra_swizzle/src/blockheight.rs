@@ -1,4 +1,4 @@
-use crate::{div_round_up, height_in_blocks, BlockHeight};
+use crate::BlockHeight;
 
 // Block height code ported from C# implementations of driver code by gdkchan.
 // The code can be found here: https://github.com/KillzXGaming/Switch-Toolbox/pull/419#issuecomment-959980096
@@ -7,7 +7,7 @@ use crate::{div_round_up, height_in_blocks, BlockHeight};
 // TODO: Separate module for this code?
 // TODO: Document that this is height in bytes.
 /// Calculates the block height parameter to use for the first mip level if no block height is specified.
-/// 
+///
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the height in pixels.
 /**
@@ -89,6 +89,8 @@ pub fn mip_block_height(
 
 #[cfg(test)]
 mod tests {
+    use crate::div_round_up;
+
     use super::*;
 
     #[test]
