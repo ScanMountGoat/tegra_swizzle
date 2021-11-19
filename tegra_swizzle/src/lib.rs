@@ -315,6 +315,7 @@ let n = 10;
 assert_eq!(n, div_round_up(n, 1));
 ```
  */
+#[inline]
 pub const fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
 }
