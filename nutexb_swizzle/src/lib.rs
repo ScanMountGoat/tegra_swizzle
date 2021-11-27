@@ -197,7 +197,7 @@ fn create_swizzle_lut<T: LookupBlock>(swizzled: &[T], deswizzled: &[T]) -> Vec<i
 pub fn write_rgba_lut<W: Write>(writer: &mut W, pixel_count: usize) {
     for i in 0..pixel_count as u32 {
         // Use the linear address to create unique pixel values.
-        writer.write_all(&(i / 128).to_le_bytes()).unwrap();
+        writer.write_all(&i.to_le_bytes()).unwrap();
     }
 }
 
