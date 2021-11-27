@@ -1,6 +1,7 @@
 use clap::{App, AppSettings, Arg, SubCommand};
 use nutexb_swizzle::formats::ImageFormat;
 use nutexb_swizzle::{deswizzle, swizzle};
+use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -70,6 +71,24 @@ fn main() {
                 .arg(&width_arg)
                 .arg(&height_arg)
                 .arg(&image_size_arg)
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .help("The output file for the image data")
+                        .required(true)
+                        .takes_value(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("write_gobs")
+                .about("Writes a set number of unique gob indices for the given image size")
+                .arg(
+                    Arg::with_name("imagesize")
+                        .long("imagesize")
+                        .help("The total number of bytes of data to write.")
+                        .required(true)
+                        .takes_value(true))               
                 .arg(
                     Arg::with_name("output")
                         .short("o")
@@ -188,6 +207,9 @@ fn main() {
     match matches.subcommand() {
         ("write_addresses", Some(sub_m)) => {
             write_addresses(sub_m);
+        }
+        ("write_gobs", Some(sub_m)) => {
+            write_gobs(sub_m);
         }
         ("calculate_swizzle", Some(sub_m)) => {
             calculate_swizzle(sub_m);
@@ -324,12 +346,22 @@ fn write_addresses(sub_m: &clap::ArgMatches) {
     } else {
         match format {
             ImageFormat::Rgba8 => nutexb_swizzle::write_rgba_lut(&mut writer, block_count),
-            ImageFormat::RgbaF32 => {
-                nutexb_swizzle::write_rgba_f32_lut(&mut writer, block_count)
-            }
+            ImageFormat::RgbaF32 => nutexb_swizzle::write_rgba_f32_lut(&mut writer, block_count),
             ImageFormat::Bc1 => nutexb_swizzle::write_bc1_lut(&mut writer, block_count),
             ImageFormat::Bc3 => nutexb_swizzle::write_bc3_lut(&mut writer, block_count),
             ImageFormat::Bc7 => nutexb_swizzle::write_bc7_lut(&mut writer, block_count),
         }
     };
+}
+
+fn write_gobs(sub_m: &clap::ArgMatches) {
+    let output = Path::new(sub_m.value_of("output").unwrap());
+    let image_size = sub_m.value_of("imagesize").unwrap().parse().unwrap();
+    let gob_count = tegra_swizzle::div_round_up(image_size, 512);
+    let mut writer = std::io::BufWriter::new(std::fs::File::create(output).unwrap());
+    for i in 0..gob_count as u32 {
+        for _ in 0..512 / 4 {
+            writer.write_all(&i.to_le_bytes()).unwrap();
+        }
+    }
 }
