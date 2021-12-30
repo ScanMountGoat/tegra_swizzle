@@ -1,8 +1,7 @@
-use crate::BlockHeight;
-
 // Block height code ported from C# implementations of driver code by gdkchan.
 // The code can be found here: https://github.com/KillzXGaming/Switch-Toolbox/pull/419#issuecomment-959980096
 // This comes from the Ryujinx emulator: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
+use crate::BlockHeight;
 
 // TODO: Separate module for this code?
 // TODO: Document that this is height in bytes.

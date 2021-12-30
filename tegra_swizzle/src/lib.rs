@@ -62,7 +62,11 @@
 //! Array textures such as cube maps may require additional alignment to work properly.
 //! Depth values other than 1 are not guaranteed to work properly at this time.
 //! These limitations should hopefully be fixed in a future release.
+mod arrays;
+mod blockdepth;
 mod blockheight;
+
+// TODO: Separate module for swizzle?
 pub mod ffi;
 pub use blockheight::*;
 
@@ -125,24 +129,15 @@ impl BlockHeight {
     }
 }
 
-fn gob_address_z(z: usize) -> usize {
-    // This is the gob layout for a texture with
-    // width in gobs of 1, block height = 1, and depth = 16.
-    // GOB0    GOB16
-    // GOB1    GOB17
-    // ....    ...
-    // GOB15   GOB32
+// TODO: Add additional 3D tests?
+// Yuzu: https://github.com/yuzu-emu/yuzu/blob/c5ca8675c84ca73375cf3fe2ade257c8aa5c1239/src/video_core/textures/decoders.cpp#L46-L47
+// Ryujinx: https://github.com/Ryujinx/Ryujinx/blob/1485780d90a554a9a71585ff1dd6e049b32b761e/Ryujinx.Graphics.Texture/BlockLinearLayout.cs#L146-L154
+fn gob_address_z(z: usize, block_height: usize, block_depth: usize, slice_size: usize) -> usize {
     // Each "column" of blocks has block_depth many blocks.
-    // TODO: There's currently only a single 16x16x16 RGBA example, so this is hardcoded for now.
-    // The math seems to be based on block_depth of 16 bytes?
-    // TODO: Where does the number 512 come from?
-    z * 512
-}
-
-// Code for offset_x and offset_y adapted from examples in the Tegra TRM page 1187.
-fn gob_address_x(x: usize, block_size_in_bytes: usize) -> usize {
-    let block_x = x / GOB_WIDTH_IN_BYTES;
-    block_x * block_size_in_bytes
+    // A 16x16x16 RGBA8 3d texture has the following deswizzled GOB indices.
+    // 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24,
+    // 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31
+    (z / block_depth * slice_size) + ((z & (block_depth - 1)) * GOB_SIZE_IN_BYTES * block_height)
 }
 
 fn gob_address_y(
@@ -154,6 +149,12 @@ fn gob_address_y(
     let block_y = y / block_height_in_bytes;
     let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT_IN_BYTES;
     block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE_IN_BYTES
+}
+
+// Code for offset_x and offset_y adapted from examples in the Tegra TRM page 1187.
+fn gob_address_x(x: usize, block_size_in_bytes: usize) -> usize {
+    let block_x = x / GOB_WIDTH_IN_BYTES;
+    block_x * block_size_in_bytes
 }
 
 // Code taken from examples in Tegra TRM page 1188.
@@ -446,7 +447,7 @@ pub fn deswizzle_block_linear(
         });
     }
 
-    // TODO: Can we assume depth is block_depth?
+    // TODO: We can't assume depth is block_depth.
     swizzle_inner(
         width,
         height,
@@ -474,17 +475,21 @@ fn swizzle_inner(
 ) {
     let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
 
+    // TODO: Is this correct?
+    let slice_size = image_width_in_gobs * block_depth * GOB_SIZE_IN_BYTES;
+
     // Blocks are always one GOB wide.
     // TODO: Citation?
     let block_width = 1;
     let block_size_in_bytes = GOB_SIZE_IN_BYTES * block_width * block_height * block_depth;
     let block_height_in_bytes = GOB_HEIGHT_IN_BYTES * block_height;
 
-    // Convert the pixel x,y,z coordinates to byte coordinates in the surface.
-    // Stepping by a GOB of bytes a time enables optimizing the inner loop.
-    // This works because swizzling uses byte coordinates rather than pixel coordinates.
+    // Swizzling is defined as a mapping from byte coordinates x,y,z -> x',y',z'.
+    // We step a GOB of bytes at a time to enable a tiled optimization approach.
+    // GOBs always use the same swizzle patterns, so we can optimize swizzling complete 64x8 byte tiles.
+    // The partially filled GOBs along the right and bottom edge use a slower per byte implementation.
     for z0 in 0..depth {
-        let offset_z = gob_address_z(z0);
+        let offset_z = gob_address_z(z0, block_height, block_depth, slice_size);
 
         // Step by a GOB of bytes in y.
         for y0 in (0..height).step_by(GOB_HEIGHT_IN_BYTES) {
@@ -496,14 +501,21 @@ fn swizzle_inner(
             );
 
             // Step by a GOB of bytes in x.
+            // The bytes per pixel converts pixel coordinates to byte coordinates.
+            // This assumes BCN formats pass in their width and height in number of blocks rather than pixels.
             for x0 in (0..(width * bytes_per_pixel)).step_by(GOB_WIDTH_IN_BYTES) {
                 let offset_x = gob_address_x(x0, block_size_in_bytes);
 
                 let gob_address = offset_z + offset_y + offset_x;
+                println!(
+                    "{:?}, {:?} {:?} {:?}",
+                    gob_address / 512,
+                    offset_x / 512,
+                    offset_y / 512,
+                    offset_z / 512
+                );
 
-                // Check if the current GOB is filled in the input and output.
-                // In practice, many surfaces will have integral dimensions in gobs.
-                // This allows us to copy 16 bytes at a time for each 512 byte GOB.
+                // Check if we can use the fast path.
                 if x0 + GOB_WIDTH_IN_BYTES < width * bytes_per_pixel
                     && y0 + GOB_HEIGHT_IN_BYTES < height
                 {
