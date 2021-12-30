@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use tegra_swizzle::BlockHeight;
 use tegra_swizzle::swizzle_block_linear;
 use tegra_swizzle::swizzled_surface_size;
+use tegra_swizzle::BlockHeight;
 
 use criterion::BenchmarkId;
 use criterion::Throughput;

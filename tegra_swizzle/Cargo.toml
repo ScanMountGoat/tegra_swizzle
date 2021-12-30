@@ -19,7 +19,7 @@ rand = "0.8.4"
 criterion = "0.3"
 
 [[bench]]
-name = "my_benchmark"
+name = "blockheight"
 harness = false
 
 [[bench]]
