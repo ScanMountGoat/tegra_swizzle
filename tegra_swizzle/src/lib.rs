@@ -507,13 +507,6 @@ fn swizzle_inner(
                 let offset_x = gob_address_x(x0, block_size_in_bytes);
 
                 let gob_address = offset_z + offset_y + offset_x;
-                println!(
-                    "{:?}, {:?} {:?} {:?}",
-                    gob_address / 512,
-                    offset_x / 512,
-                    offset_y / 512,
-                    offset_z / 512
-                );
 
                 // Check if we can use the fast path.
                 if x0 + GOB_WIDTH_IN_BYTES < width * bytes_per_pixel
