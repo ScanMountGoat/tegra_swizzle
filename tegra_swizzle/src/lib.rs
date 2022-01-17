@@ -102,6 +102,23 @@ pub enum SwizzleError {
     },
 }
 
+impl std::fmt::Display for SwizzleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SwizzleError::NotEnoughData {
+                expected_size,
+                actual_size,
+            } => write!(
+                f,
+                "Not enough data. Expected {} bytes but found {} bytes.",
+                expected_size, actual_size
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SwizzleError {}
+
 impl BlockHeight {
     /// Attempts to construct a block height from `value`.
     /// Returns [None] if `value` is not a supported block height.
