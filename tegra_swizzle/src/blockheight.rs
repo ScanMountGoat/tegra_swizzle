@@ -65,7 +65,7 @@ let mipmap_count = 5;
 
 let block_height_mip0 = block_height_mip0(div_round_up(height, 4));
 for mip in 0..mipmap_count {
-    let mip_height = div_round_up(height >> mip, 4);
+    let mip_height = std::cmp::max(div_round_up(height >> mip, 4), 1);
 
     // The block height will likely change for each mip level.
     let mip_block_height = mip_block_height(mip_height, block_height_mip0);

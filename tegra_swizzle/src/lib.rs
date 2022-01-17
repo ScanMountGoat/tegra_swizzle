@@ -5,46 +5,41 @@
 //! The following example demonstrates deswizzling mipmaps for a BC7 compressed 2D surface.
 //! BC7 has 4x4 pixel blocks that each take up 16 bytes.
 //! For uncompressed formats like R8G8B8A8, the [div_round_up] calls are unnecessary.
-//!
-//! ```rust no_run
-//! use tegra_swizzle::{
-//!     block_height_mip0, deswizzle_block_linear, div_round_up, mip_block_height,
-//!     swizzled_surface_size
-//! };
-//! # fn main() -> Result<(), tegra_swizzle::SwizzleError> {
-//! # let image_data = vec![0u8; 4];
-//! # let height = 300;
-//! # let width = 128;
-//! # let mipmap_count = 5;
-//!
-//! // Infer the block height if the surface doesn't specify one.
-//! let block_height_mip0 = block_height_mip0(div_round_up(height, 4));
-//!
-//! // It's common for all mipmaps to be stored in a contiguous region on disk.
-//! // We'll simply update the starting offset for each level.
-//! let mut offset = 0;
-//! for mip in 0..mipmap_count {
-//!     let mip_width = div_round_up(width >> mip, 4);
-//!     let mip_height = div_round_up(height >> mip, 4);
-//!
-//!     // The block height will likely change for each mip level.
-//!     let mip_block_height = mip_block_height(mip_height, block_height_mip0);
-//!
-//!     let deswizzled_mipmap = deswizzle_block_linear(
-//!         mip_width,
-//!         mip_height,
-//!         1,
-//!         &image_data[offset..],
-//!         mip_block_height,
-//!         16,
-//!     )?;
-//!
-//!     offset += swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, 16);
-//! }
-//! # Ok(())
-//! # }
-//! ```
-//!
+/*!
+```rust no_run
+use tegra_swizzle::{
+    block_height_mip0, deswizzle_block_linear, div_round_up, mip_block_height,
+    swizzled_surface_size
+};
+# fn main() -> Result<(), tegra_swizzle::SwizzleError> {
+# let image_data = vec![0u8; 4];
+# let height = 300;
+# let width = 128;
+# let mipmap_count = 5;
+// Infer the block height if the surface doesn't specify one.
+let block_height_mip0 = block_height_mip0(div_round_up(height, 4));
+// It's common for all mipmaps to be stored in a contiguous region on disk.
+// We'll simply update the starting offset for each level.
+let mut offset = 0;
+for mip in 0..mipmap_count {
+    let mip_width = std::cmp::max(div_round_up(width >> mip, 4), 1);
+    let mip_height = std::cmp::max(div_round_up(height >> mip, 4), 1);
+    // The block height will likely change for each mip level.
+    let mip_block_height = mip_block_height(mip_height, block_height_mip0);
+    let deswizzled_mipmap = deswizzle_block_linear(
+        mip_width,
+        mip_height,
+        1,
+        &image_data[offset..],
+        mip_block_height,
+        16,
+    )?;
+    offset += swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, 16);
+}
+# Ok(())
+# }
+```
+*/
 //! # Block Linear Swizzling
 //! The [swizzle_block_linear] and [deswizzle_block_linear] functions
 //! implement safe and efficient swizzling for the Tegra X1's block linear format.
@@ -319,6 +314,10 @@ assert_eq!(n, div_round_up(n, 1));
 #[inline]
 pub const fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
+}
+
+fn round_up(x: usize, n: usize) -> usize {
+    ((x + n - 1) / n) * n
 }
 
 const fn width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {

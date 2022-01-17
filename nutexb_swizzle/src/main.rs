@@ -88,7 +88,7 @@ fn main() {
                         .long("imagesize")
                         .help("The total number of bytes of data to write.")
                         .required(true)
-                        .takes_value(true))               
+                        .takes_value(true))
                 .arg(
                     Arg::with_name("output")
                         .short("o")
