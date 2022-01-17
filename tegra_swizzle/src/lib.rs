@@ -62,7 +62,10 @@ mod blockdepth;
 mod blockheight;
 
 // TODO: Separate module for swizzle?
-pub mod ffi;
+
+// Avoid making this module public to prevent people importing it accidentally.
+mod ffi;
+
 pub use blockheight::*;
 
 const GOB_WIDTH_IN_BYTES: usize = 64;
