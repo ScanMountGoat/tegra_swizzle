@@ -1,3 +1,4 @@
+//! Functions for working with surfaces stored in a combined buffer for all arrays and mipmaps.
 use std::cmp::max;
 
 use crate::{
