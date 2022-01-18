@@ -1,15 +1,12 @@
 // Array alignment code ported from C# implementations of driver code by gdkchan.
 // The code can be found here: https://github.com/KillzXGaming/Switch-Toolbox/pull/419#issuecomment-959980096
 // This comes from the Ryujinx emulator: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
-use crate::{div_round_up, round_up, swizzled_surface_size, BlockHeight};
+use crate::{round_up, BlockHeight};
 
-// TODO: Use consistent conventions with the other code.
-// TODO: Should this be part of the public API with an example?
 pub fn align_layer_size(
     layer_size: usize,
     height: usize,
     depth: usize,
-    // block_height: usize,
     block_height_mip0: BlockHeight,
     depth_in_gobs: usize,
 ) -> usize {
@@ -18,13 +15,10 @@ pub fn align_layer_size(
     let gob_blocks_in_tile_x = 1;
 
     let mut size = layer_size;
-    // let mut height = height;
     let mut gob_height = block_height_mip0 as usize;
     let mut gob_depth = depth_in_gobs;
 
     if gob_blocks_in_tile_x < 2 {
-        // height = div_round_up(height, block_height);
-
         while height <= (gob_height / 2) * 8 && gob_height > 1 {
             gob_height /= 2;
         }
@@ -50,41 +44,58 @@ pub fn align_layer_size(
 
 #[cfg(test)]
 mod tests {
-    use crate::{block_height_mip0, swizzled_surface_size};
+    use std::cmp::max;
+
+    use crate::{block_height_mip0, div_round_up, mip_block_height, swizzled_surface_size};
 
     use super::*;
 
-    fn layer_size_no_mips(
+    // TODO: Avoid duplicating this code?
+    fn aligned_size(
         width: usize,
         height: usize,
         block_width: usize,
         block_height: usize,
         bpp: usize,
+        mipmap_count: usize,
     ) -> usize {
-        let width = div_round_up(width, block_width);
-        let height = div_round_up(height, block_height);
-        let block_height_mip0 = block_height_mip0(height);
-        let layer_size = swizzled_surface_size(width, height, 1, block_height_mip0, bpp);
-        // TODO: Alignment doesn't matter with no mipmaps?
-        let aligned = align_layer_size(layer_size, height, 1, block_height_mip0, 1);
-        aligned * 6
+        let block_height_mip0 = block_height_mip0(div_round_up(height, block_height));
+
+        let mut layer_size = 0;
+
+        for mip in 0..mipmap_count {
+            let mip_width = max(div_round_up(width >> mip, block_width), 1);
+            let mip_height = max(div_round_up(height >> mip, block_height), 1);
+
+            // The block height will likely change for each mip level.
+            let mip_block_height = mip_block_height(mip_height, block_height_mip0);
+
+            layer_size += swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, bpp);
+        }
+
+        // Assume 6 array layers.
+        align_layer_size(layer_size, height, 1, block_height_mip0, 1) * 6
     }
 
-    // TODO: Add some basic tests for 512 byte alignment.
-    // TODO: Find some examples from nutexb files?
+    // Expected swizzled sizes are taken from the nutexb footer.
     #[test]
-    fn layer_size_no_mipmaps() {
-        assert_eq!(6144, layer_size_no_mips(16, 16, 1, 1, 4));
-        assert_eq!(3072, layer_size_no_mips(16, 16, 4, 4, 8));
-        assert_eq!(25165824, layer_size_no_mips(2048, 2048, 4, 4, 16));
-        assert_eq!(1572864, layer_size_no_mips(256, 256, 1, 1, 4));
-        assert_eq!(98304, layer_size_no_mips(64, 64, 1, 1, 4));
-        assert_eq!(98304, layer_size_no_mips(64, 64, 1, 1, 4));
-        assert_eq!(393216, layer_size_no_mips(64, 64, 1, 1, 16));
+    fn layer_sizes_no_mipmaps() {
+        assert_eq!(6144, aligned_size(16, 16, 1, 1, 4, 1));
+        assert_eq!(3072, aligned_size(16, 16, 4, 4, 8, 1));
+        assert_eq!(25165824, aligned_size(2048, 2048, 4, 4, 16, 1));
+        assert_eq!(1572864, aligned_size(256, 256, 1, 1, 4, 1));
+        assert_eq!(98304, aligned_size(64, 64, 1, 1, 4, 1));
+        assert_eq!(98304, aligned_size(64, 64, 1, 1, 4, 1));
+        assert_eq!(393216, aligned_size(64, 64, 1, 1, 16, 1));
     }
 
     #[test]
-    fn layer_size_mipmaps() {
-        // TODO: How to test this?
+    fn layer_sizes_mipmaps() {
+        assert_eq!(147456, aligned_size(128, 128, 4, 4, 16, 8));
+        assert_eq!(15360, aligned_size(16, 16, 4, 4, 16, 5));
+        assert_eq!(540672, aligned_size(256, 256, 4, 4, 16, 9));
+        assert_eq!(1204224, aligned_size(288, 288, 4, 4, 16, 9));
+        assert_eq!(2113536, aligned_size(512, 512, 4, 4, 16, 10));
+        assert_eq!(49152, aligned_size(64, 64, 4, 4, 16, 7));
     }
 }

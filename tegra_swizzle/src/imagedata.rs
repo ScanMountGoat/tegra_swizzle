@@ -141,6 +141,8 @@ pub fn deswizzle_data(
 mod tests {
     use super::*;
 
+    // Expected swizzled sizes are taken from the nutexb footer.
+    // Expected deswizzled sizes are the product of the mipmap size sum and the array count.
     #[test]
     fn swizzle_data_arrays_no_mipmaps_length() {
         assert_eq!(
