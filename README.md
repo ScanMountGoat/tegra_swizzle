@@ -12,7 +12,7 @@ A safe and efficient pure Rust implementation of swizzling and deswizzling for t
 ### C FFI 
 For using the library in other languages through C FFI, first build the library with `cargo build --release`. This requires the Rust toolchain to be installed.  
 
-The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. For information on function signatures, see the FFI documentation in the docs.rs link above.
+The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. For documentation, see the [ffi](https://github.com/ScanMountGoat/nutexb_swizzle/blob/main/tegra_swizzle/src/ffi.rs) module.
 
 ## Test Data
 This repository contains [sample data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for testing swizzling and deswizzling. These files were generated using the swizzling implementation for the Yuzu emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   
