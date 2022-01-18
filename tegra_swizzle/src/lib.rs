@@ -61,6 +61,8 @@ mod arrays;
 mod blockdepth;
 mod blockheight;
 
+pub mod imagedata;
+
 // TODO: Separate module for swizzle?
 
 // Avoid making this module public to prevent people importing it accidentally.
