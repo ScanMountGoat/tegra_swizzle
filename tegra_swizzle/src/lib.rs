@@ -8,7 +8,7 @@
 /*!
 ```rust no_run
 use tegra_swizzle::{
-    block_height_mip0, deswizzle_block_linear, div_round_up, mip_block_height,
+    block_height_mip0, swizzle::deswizzle_block_linear, div_round_up, mip_block_height,
     swizzled_surface_size
 };
 # fn main() -> Result<(), tegra_swizzle::SwizzleError> {
@@ -41,7 +41,7 @@ for mip in 0..mipmap_count {
 ```
 */
 //! # Block Linear Swizzling
-//! The [swizzle_block_linear] and [deswizzle_block_linear] functions
+//! The [swizzle::swizzle_block_linear] and [swizzle::deswizzle_block_linear] functions
 //! implement safe and efficient swizzling for the Tegra X1's block linear format.
 //!
 //! Block linear arranges bytes of a texture surface into a 2D grid of blocks
@@ -53,16 +53,16 @@ for mip in 0..mipmap_count {
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.
 //!
 //! # Limitations
-//! 2D surfaces are fully supported with minimal support for 3D surfaces.
-//! Array textures such as cube maps may require additional alignment to work properly.
-//! Depth values other than 1 are not guaranteed to work properly at this time.
+//! 2D and 3D surfaces as well as cube maps and texture arrays are fully supported.
+//! For array counts other than 1 or 6 and depth values other than 16,
+//! swizzling may not work as intended.
 //! These limitations should hopefully be fixed in a future release.
 mod arrays;
 mod blockdepth;
 mod blockheight;
-mod swizzle;
 
 pub mod imagedata;
+pub mod swizzle;
 
 // TODO: Separate module for swizzle?
 
@@ -70,7 +70,6 @@ pub mod imagedata;
 mod ffi;
 
 pub use blockheight::*;
-pub use swizzle::*;
 
 const GOB_WIDTH_IN_BYTES: usize = 64;
 const GOB_HEIGHT_IN_BYTES: usize = 8;

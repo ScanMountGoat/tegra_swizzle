@@ -1,16 +1,48 @@
 //! Functions for working with surfaces stored in a combined buffer for all arrays and mipmaps.
+//!
+//! It's common for texture surfaces to be represented
+//! as a single allocated region of memory that contains all array layers and mipmaps.
+//! This also applies to the swizzled surfaces used for textures on the Tegra X1.
+//!
+//! Use [deswizzle_data] for reading swizzled surfaces into a single deswizzled `Vec<u8>`.
+//! This output can be used as is for creating DDS files.
+//! Modern graphics APIs like Vulkan support this dense layout for initializing all
+//! array layers and mipmaps for a texture in a single API call.
+//!
+//! Use [swizzle_data] for writing a swizzled surface from a combined buffer like the result of [deswizzle_data] or a DDS file.
+//! This is the image data layout expected for some texture file formats.
+//!
+//! # Examples
+//! Array layers and mipmaps are ordered by layer and then mipmap.
+//! A surface with `L` layers and `M` mipmaps would have the following layout.
+/*!
+```no_compile
+Layer 0 Mip 0
+Layer 0 Mip 1
+...
+Layer 0 Mip M,
+Layer 1 Mip 0,
+Layer 1 Mip 1
+...
+Layer L Mip M
+```
+*/
+//! The convention is for the non swizzled layout to be tightly packed.
+//! Swizzled surfaces add additional padding and alignment between layers and mipmaps.
 use std::cmp::max;
 
 use crate::{
-    arrays::align_layer_size, deswizzle_block_linear, deswizzled_surface_size, div_round_up,
-    mip_block_height, swizzle_block_linear, swizzled_surface_size, BlockHeight, SwizzleError,
+    arrays::align_layer_size, deswizzled_surface_size, div_round_up, mip_block_height,
+    swizzle::deswizzle_block_linear, swizzle::swizzle_block_linear, swizzled_surface_size,
+    BlockHeight, SwizzleError,
 };
 
 // TODO: swizzle_data
 // TODO: Create an inner function to reduce duplicate code?
 
 /// Swizzles all the array layers and mipmaps in `source` to a combined vector with appropriate mipmap and array alignment.
-/// This layout can be used for texture file formats that store texture data in a single buffer.
+///
+/// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
 pub fn swizzle_data(
     width: usize,
     height: usize,
@@ -25,7 +57,6 @@ pub fn swizzle_data(
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
     // TODO: 3D support.
-    // TODO: Arrays.
     // TODO: We can assume the total size is 33% larger than the base level.
     // This should eliminate any reallocations.
     let mut swizzled_data = Vec::new();
@@ -75,7 +106,8 @@ pub fn swizzle_data(
 
 // TODO: Find a way to simplify the parameters.
 /// Deswizzles all the array layers and mipmaps in `source` to a new vector without any padding between array layers or mipmaps.
-/// This dense layout can be used for initializing textures in modern graphics APIs such as Vulkan or for DDS files.
+///
+/// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
 pub fn deswizzle_data(
     width: usize,
     height: usize,
@@ -90,7 +122,6 @@ pub fn deswizzle_data(
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
     // TODO: 3D support.
-    // TODO: Arrays.
     // TODO: We can assume the total size is 33% larger than the base level.
     // This should eliminate any reallocations.
     let mut deswizzled_data = Vec::new();

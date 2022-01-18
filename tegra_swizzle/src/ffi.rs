@@ -24,7 +24,7 @@ pub unsafe extern "C" fn swizzle_block_linear(
     let source = std::slice::from_raw_parts(source, source_len);
     let destination = std::slice::from_raw_parts_mut(destination, destination_len);
 
-    super::swizzle_inner(
+    crate::swizzle::swizzle_inner(
         width,
         height,
         depth,
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn deswizzle_block_linear(
     let source = std::slice::from_raw_parts(source, source_len);
     let destination = std::slice::from_raw_parts_mut(destination, destination_len);
 
-    super::swizzle_inner(
+    crate::swizzle::swizzle_inner(
         width,
         height,
         depth,
