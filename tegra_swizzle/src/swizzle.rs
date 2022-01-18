@@ -1,4 +1,4 @@
-//! Functions for swizzling and deswizzling.
+//! Functions for swizzling and deswizzling specific regions of a surface.
 use crate::{
     deswizzled_surface_size, swizzled_surface_size, width_in_gobs, BlockHeight, SwizzleError,
     GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,

@@ -1,47 +1,27 @@
 //! # tegra_swizzle
 //! tegra_swizzle is an unofficial CPU implementation for Tegra X1 surface swizzling.
 //!
-//! # Getting Started
-//! The following example demonstrates deswizzling mipmaps for a BC7 compressed 2D surface.
-//! BC7 has 4x4 pixel blocks that each take up 16 bytes.
-//! For uncompressed formats like R8G8B8A8, the [div_round_up] calls are unnecessary.
+//! ## Getting Started
+//! Swizzled texture data is often stored in a single buffer containing all arrays and mipmaps.
+//! This memory layout can be deswizzled all at once using [surface::deswizzle_surface].
 /*!
 ```rust no_run
-use tegra_swizzle::{
-    block_height_mip0, swizzle::deswizzle_block_linear, div_round_up, mip_block_height,
-    swizzled_surface_size
-};
-# fn main() -> Result<(), tegra_swizzle::SwizzleError> {
-# let image_data = vec![0u8; 4];
-# let height = 300;
-# let width = 128;
-# let mipmap_count = 5;
-// Infer the block height if the surface doesn't specify one.
-let block_height_mip0 = block_height_mip0(div_round_up(height, 4));
-// It's common for all mipmaps to be stored in a contiguous region on disk.
-// We'll simply update the starting offset for each level.
-let mut offset = 0;
-for mip in 0..mipmap_count {
-    let mip_width = std::cmp::max(div_round_up(width >> mip, 4), 1);
-    let mip_height = std::cmp::max(div_round_up(height >> mip, 4), 1);
-    // The block height will likely change for each mip level.
-    let mip_block_height = mip_block_height(mip_height, block_height_mip0);
-    let deswizzled_mipmap = deswizzle_block_linear(
-        mip_width,
-        mip_height,
-        1,
-        &image_data[offset..],
-        mip_block_height,
-        16,
-    )?;
-    offset += swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, 16);
-}
-# Ok(())
-# }
+use tegra_swizzle::surface::deswizzle_surface;
+# let swizzled_surface = vec![0u8; 10];
+
+// 16x16 BC7 cube map with 5 mipmaps.
+let surface = deswizzle_surface(16, 16, 1, &swizzled_surface, 4, 4, 1, None, 16, 5, 6);
+
+// 128x128 R8G8B8A8 2D texture with no mipmaps.
+let surface = deswizzle_surface(128, 128, 1, &swizzled_surface, 1, 1, 1, None, 4, 1, 1);
+
+// 16x16x16 R8G8B8A8 3D texture with no mipmaps.
+let surface = deswizzle_surface(16, 16, 16, &swizzled_surface, 1, 1, 1, None, 4, 1, 1);
 ```
-*/
+ */
+//!
 //! # Block Linear Swizzling
-//! The [swizzle::swizzle_block_linear] and [swizzle::deswizzle_block_linear] functions
+//! The [surface::swizzle_surface] and [surface::deswizzle_surface] functions
 //! implement safe and efficient swizzling for the Tegra X1's block linear format.
 //!
 //! Block linear arranges bytes of a texture surface into a 2D grid of blocks
@@ -61,10 +41,8 @@ mod arrays;
 mod blockdepth;
 mod blockheight;
 
-pub mod imagedata;
+pub mod surface;
 pub mod swizzle;
-
-// TODO: Separate module for swizzle?
 
 // Avoid making this module public to prevent people importing it accidentally.
 mod ffi;

@@ -4,12 +4,12 @@
 //! as a single allocated region of memory that contains all array layers and mipmaps.
 //! This also applies to the swizzled surfaces used for textures on the Tegra X1.
 //!
-//! Use [deswizzle_data] for reading swizzled surfaces into a single deswizzled `Vec<u8>`.
+//! Use [deswizzle_surface] for reading swizzled surfaces into a single deswizzled `Vec<u8>`.
 //! This output can be used as is for creating DDS files.
 //! Modern graphics APIs like Vulkan support this dense layout for initializing all
 //! array layers and mipmaps for a texture in a single API call.
 //!
-//! Use [swizzle_data] for writing a swizzled surface from a combined buffer like the result of [deswizzle_data] or a DDS file.
+//! Use [swizzle_surface] for writing a swizzled surface from a combined buffer like the result of [deswizzle_surface] or a DDS file.
 //! This is the image data layout expected for some texture file formats.
 //!
 //! # Examples
@@ -37,13 +37,14 @@ use crate::{
     BlockHeight, SwizzleError,
 };
 
-// TODO: swizzle_data
+// TODO: Call this "surface" instead?
 // TODO: Create an inner function to reduce duplicate code?
 
-/// Swizzles all the array layers and mipmaps in `source` to a combined vector with appropriate mipmap and array alignment.
+/// Swizzles all the array layers and mipmaps in `source` using the block linear algorithm
+/// to a combined vector with appropriate mipmap and array alignment.
 ///
 /// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
-pub fn swizzle_data(
+pub fn swizzle_surface(
     width: usize,
     height: usize,
     depth: usize,
@@ -105,10 +106,11 @@ pub fn swizzle_data(
 }
 
 // TODO: Find a way to simplify the parameters.
-/// Deswizzles all the array layers and mipmaps in `source` to a new vector without any padding between array layers or mipmaps.
+/// Deswizzles all the array layers and mipmaps in `source` using the block linear algorithm
+/// to a new vector without any padding between array layers or mipmaps.
 ///
 /// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
-pub fn deswizzle_data(
+pub fn deswizzle_surface(
     width: usize,
     height: usize,
     depth: usize,
@@ -179,43 +181,43 @@ mod tests {
     fn swizzle_data_arrays_no_mipmaps_length() {
         assert_eq!(
             6144,
-            swizzle_data(16, 16, 1, &[0u8; 6144], 1, 1, 1, None, 4, 1, 6)
+            swizzle_surface(16, 16, 1, &[0u8; 6144], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             3072,
-            swizzle_data(16, 16, 1, &[0u8; 768], 4, 4, 1, None, 8, 1, 6)
+            swizzle_surface(16, 16, 1, &[0u8; 768], 4, 4, 1, None, 8, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             25165824,
-            swizzle_data(2048, 2048, 1, &[0u8; 25165824], 4, 4, 1, None, 16, 1, 6)
+            swizzle_surface(2048, 2048, 1, &[0u8; 25165824], 4, 4, 1, None, 16, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             1572864,
-            swizzle_data(256, 256, 1, &[0u8; 1572864], 1, 1, 1, None, 4, 1, 6)
+            swizzle_surface(256, 256, 1, &[0u8; 1572864], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             98304,
-            swizzle_data(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
+            swizzle_surface(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             98304,
-            swizzle_data(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
+            swizzle_surface(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             393216,
-            swizzle_data(64, 64, 1, &[0u8; 393216], 1, 1, 1, None, 16, 1, 6)
+            swizzle_surface(64, 64, 1, &[0u8; 393216], 1, 1, 1, None, 16, 1, 6)
                 .unwrap()
                 .len()
         );
@@ -225,37 +227,37 @@ mod tests {
     fn swizzle_data_arrays_mipmaps_length() {
         assert_eq!(
             147456,
-            swizzle_data(128, 128, 1, &[0u8; 131232], 4, 4, 1, None, 16, 8, 6)
+            swizzle_surface(128, 128, 1, &[0u8; 131232], 4, 4, 1, None, 16, 8, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             15360,
-            swizzle_data(16, 16, 1, &[0u8; 2208], 4, 4, 1, None, 16, 5, 6)
+            swizzle_surface(16, 16, 1, &[0u8; 2208], 4, 4, 1, None, 16, 5, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             540672,
-            swizzle_data(256, 256, 1, &[0u8; 524448], 4, 4, 1, None, 16, 9, 6)
+            swizzle_surface(256, 256, 1, &[0u8; 524448], 4, 4, 1, None, 16, 9, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             1204224,
-            swizzle_data(288, 288, 1, &[0u8; 664512], 4, 4, 1, None, 16, 9, 6)
+            swizzle_surface(288, 288, 1, &[0u8; 664512], 4, 4, 1, None, 16, 9, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2113536,
-            swizzle_data(512, 512, 1, &[0u8; 2097312], 4, 4, 1, None, 16, 10, 6)
+            swizzle_surface(512, 512, 1, &[0u8; 2097312], 4, 4, 1, None, 16, 10, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             49152,
-            swizzle_data(64, 64, 1, &[0u8; 32928], 4, 4, 1, None, 16, 7, 6)
+            swizzle_surface(64, 64, 1, &[0u8; 32928], 4, 4, 1, None, 16, 7, 6)
                 .unwrap()
                 .len()
         );
@@ -268,109 +270,109 @@ mod tests {
         // The swizzled size is taken from the footer.
         assert_eq!(
             1024,
-            swizzle_data(16, 16, 1, &[0u8; 1024], 1, 1, 1, None, 4, 1, 1)
+            swizzle_surface(16, 16, 1, &[0u8; 1024], 1, 1, 1, None, 4, 1, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             147968,
-            swizzle_data(400, 360, 1, &[0u8; 96304], 4, 4, 1, None, 8, 9, 1)
+            swizzle_surface(400, 360, 1, &[0u8; 96304], 4, 4, 1, None, 8, 9, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             176640,
-            swizzle_data(256, 384, 1, &[0u8; 131104], 4, 4, 1, None, 16, 9, 1)
+            swizzle_surface(256, 384, 1, &[0u8; 131104], 4, 4, 1, None, 16, 9, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             20480,
-            swizzle_data(96, 256, 1, &[0u8; 16424], 4, 4, 1, None, 8, 9, 1)
+            swizzle_surface(96, 256, 1, &[0u8; 16424], 4, 4, 1, None, 8, 9, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             21504,
-            swizzle_data(100, 100, 1, &[0u8; 13728], 4, 4, 1, None, 16, 7, 1)
+            swizzle_surface(100, 100, 1, &[0u8; 13728], 4, 4, 1, None, 16, 7, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             22371840,
-            swizzle_data(4096, 4096, 1, &[0u8; 22369648], 4, 4, 1, None, 16, 13, 1)
+            swizzle_surface(4096, 4096, 1, &[0u8; 22369648], 4, 4, 1, None, 16, 13, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             256000,
-            swizzle_data(360, 300, 1, &[0u8; 144960], 4, 4, 1, None, 16, 9, 1)
+            swizzle_surface(360, 300, 1, &[0u8; 144960], 4, 4, 1, None, 16, 9, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2624512,
-            swizzle_data(1920, 848, 1, &[0u8; 2171984], 4, 4, 1, None, 16, 11, 1)
+            swizzle_surface(1920, 848, 1, &[0u8; 2171984], 4, 4, 1, None, 16, 11, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2949120,
-            swizzle_data(2880, 1632, 1, &[0u8; 2350080], 4, 4, 1, None, 8, 1, 1)
+            swizzle_surface(2880, 1632, 1, &[0u8; 2350080], 4, 4, 1, None, 8, 1, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             31232,
-            swizzle_data(148, 148, 1, &[0u8; 14936], 4, 4, 1, None, 8, 8, 1)
+            swizzle_surface(148, 148, 1, &[0u8; 14936], 4, 4, 1, None, 8, 8, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             34816,
-            swizzle_data(4, 1024, 1, &[0u8; 4104], 4, 4, 1, None, 8, 11, 1)
+            swizzle_surface(4, 1024, 1, &[0u8; 4104], 4, 4, 1, None, 8, 11, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             5594624,
-            swizzle_data(2048, 2048, 1, &[0u8; 5592432], 4, 4, 1, None, 16, 12, 1)
+            swizzle_surface(2048, 2048, 1, &[0u8; 5592432], 4, 4, 1, None, 16, 12, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             5632,
-            swizzle_data(64, 16, 1, &[0u8; 1424], 4, 4, 1, None, 16, 7, 1)
+            swizzle_surface(64, 16, 1, &[0u8; 1424], 4, 4, 1, None, 16, 7, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             5632,
-            swizzle_data(64, 8, 1, &[0u8; 784], 4, 4, 1, None, 16, 7, 1)
+            swizzle_surface(64, 8, 1, &[0u8; 784], 4, 4, 1, None, 16, 7, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             700928,
-            swizzle_data(512, 768, 1, &[0u8; 524320], 4, 4, 1, None, 16, 10, 1)
+            swizzle_surface(512, 768, 1, &[0u8; 524320], 4, 4, 1, None, 16, 10, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             701952,
-            swizzle_data(1024, 512, 1, &[0u8; 699088], 4, 4, 1, None, 16, 11, 1)
+            swizzle_surface(1024, 512, 1, &[0u8; 699088], 4, 4, 1, None, 16, 11, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             89088,
-            swizzle_data(128, 128, 1, &[0u8; 87380], 1, 1, 1, None, 4, 8, 1)
+            swizzle_surface(128, 128, 1, &[0u8; 87380], 1, 1, 1, None, 4, 8, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             90112,
-            swizzle_data(512, 256, 1, &[0u8; 87400], 4, 4, 1, None, 8, 10, 1)
+            swizzle_surface(512, 256, 1, &[0u8; 87400], 4, 4, 1, None, 8, 10, 1)
                 .unwrap()
                 .len()
         );
@@ -383,109 +385,109 @@ mod tests {
         // The swizzled size is taken from the footer.
         assert_eq!(
             1024,
-            deswizzle_data(16, 16, 1, &[0u8; 1024], 1, 1, 1, None, 4, 1, 1)
+            deswizzle_surface(16, 16, 1, &[0u8; 1024], 1, 1, 1, None, 4, 1, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             131104,
-            deswizzle_data(256, 384, 1, &[0u8; 176640], 4, 4, 1, None, 16, 9, 1)
+            deswizzle_surface(256, 384, 1, &[0u8; 176640], 4, 4, 1, None, 16, 9, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             13728,
-            deswizzle_data(100, 100, 1, &[0u8; 21504], 4, 4, 1, None, 16, 7, 1)
+            deswizzle_surface(100, 100, 1, &[0u8; 21504], 4, 4, 1, None, 16, 7, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             1424,
-            deswizzle_data(64, 16, 1, &[0u8; 5632], 4, 4, 1, None, 16, 7, 1)
+            deswizzle_surface(64, 16, 1, &[0u8; 5632], 4, 4, 1, None, 16, 7, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             144960,
-            deswizzle_data(360, 300, 1, &[0u8; 256000], 4, 4, 1, None, 16, 9, 1)
+            deswizzle_surface(360, 300, 1, &[0u8; 256000], 4, 4, 1, None, 16, 9, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             14936,
-            deswizzle_data(148, 148, 1, &[0u8; 31232], 4, 4, 1, None, 8, 8, 1)
+            deswizzle_surface(148, 148, 1, &[0u8; 31232], 4, 4, 1, None, 8, 8, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             16424,
-            deswizzle_data(96, 256, 1, &[0u8; 20480], 4, 4, 1, None, 8, 9, 1)
+            deswizzle_surface(96, 256, 1, &[0u8; 20480], 4, 4, 1, None, 8, 9, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2171984,
-            deswizzle_data(1920, 848, 1, &[0u8; 2624512], 4, 4, 1, None, 16, 11, 1)
+            deswizzle_surface(1920, 848, 1, &[0u8; 2624512], 4, 4, 1, None, 16, 11, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             22369648,
-            deswizzle_data(4096, 4096, 1, &[0u8; 22371840], 4, 4, 1, None, 16, 13, 1)
+            deswizzle_surface(4096, 4096, 1, &[0u8; 22371840], 4, 4, 1, None, 16, 13, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2350080,
-            deswizzle_data(2880, 1632, 1, &[0u8; 2949120], 4, 4, 1, None, 8, 1, 1)
+            deswizzle_surface(2880, 1632, 1, &[0u8; 2949120], 4, 4, 1, None, 8, 1, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             4104,
-            deswizzle_data(4, 1024, 1, &[0u8; 34816], 4, 4, 1, None, 8, 11, 1)
+            deswizzle_surface(4, 1024, 1, &[0u8; 34816], 4, 4, 1, None, 8, 11, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             524320,
-            deswizzle_data(512, 768, 1, &[0u8; 700928], 4, 4, 1, None, 16, 10, 1)
+            deswizzle_surface(512, 768, 1, &[0u8; 700928], 4, 4, 1, None, 16, 10, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             5592432,
-            deswizzle_data(2048, 2048, 1, &[0u8; 5594624], 4, 4, 1, None, 16, 12, 1)
+            deswizzle_surface(2048, 2048, 1, &[0u8; 5594624], 4, 4, 1, None, 16, 12, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             699088,
-            deswizzle_data(1024, 512, 1, &[0u8; 701952], 4, 4, 1, None, 16, 11, 1)
+            deswizzle_surface(1024, 512, 1, &[0u8; 701952], 4, 4, 1, None, 16, 11, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             784,
-            deswizzle_data(64, 8, 1, &[0u8; 5632], 4, 4, 1, None, 16, 7, 1)
+            deswizzle_surface(64, 8, 1, &[0u8; 5632], 4, 4, 1, None, 16, 7, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             87380,
-            deswizzle_data(128, 128, 1, &[0u8; 89088], 1, 1, 1, None, 4, 8, 1)
+            deswizzle_surface(128, 128, 1, &[0u8; 89088], 1, 1, 1, None, 4, 8, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             87400,
-            deswizzle_data(512, 256, 1, &[0u8; 90112], 4, 4, 1, None, 8, 10, 1)
+            deswizzle_surface(512, 256, 1, &[0u8; 90112], 4, 4, 1, None, 8, 10, 1)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             96304,
-            deswizzle_data(400, 360, 1, &[0u8; 147968], 4, 4, 1, None, 8, 9, 1)
+            deswizzle_surface(400, 360, 1, &[0u8; 147968], 4, 4, 1, None, 8, 9, 1)
                 .unwrap()
                 .len()
         );
@@ -495,43 +497,43 @@ mod tests {
     fn deswizzle_data_arrays_no_mipmaps_length() {
         assert_eq!(
             6144,
-            deswizzle_data(16, 16, 1, &[0u8; 6144], 1, 1, 1, None, 4, 1, 6)
+            deswizzle_surface(16, 16, 1, &[0u8; 6144], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             768,
-            deswizzle_data(16, 16, 1, &[0u8; 3072], 4, 4, 1, None, 8, 1, 6)
+            deswizzle_surface(16, 16, 1, &[0u8; 3072], 4, 4, 1, None, 8, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             25165824,
-            deswizzle_data(2048, 2048, 1, &[0u8; 25165824], 4, 4, 1, None, 16, 1, 6)
+            deswizzle_surface(2048, 2048, 1, &[0u8; 25165824], 4, 4, 1, None, 16, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             1572864,
-            deswizzle_data(256, 256, 1, &[0u8; 1572864], 1, 1, 1, None, 4, 1, 6)
+            deswizzle_surface(256, 256, 1, &[0u8; 1572864], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             98304,
-            deswizzle_data(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
+            deswizzle_surface(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             98304,
-            deswizzle_data(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
+            deswizzle_surface(64, 64, 1, &[0u8; 98304], 1, 1, 1, None, 4, 1, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             393216,
-            deswizzle_data(64, 64, 1, &[0u8; 393216], 1, 1, 1, None, 16, 1, 6)
+            deswizzle_surface(64, 64, 1, &[0u8; 393216], 1, 1, 1, None, 16, 1, 6)
                 .unwrap()
                 .len()
         );
@@ -541,37 +543,37 @@ mod tests {
     fn deswizzle_data_arrays_mipmaps_length() {
         assert_eq!(
             131232,
-            deswizzle_data(128, 128, 1, &[0u8; 147456], 4, 4, 1, None, 16, 8, 6)
+            deswizzle_surface(128, 128, 1, &[0u8; 147456], 4, 4, 1, None, 16, 8, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2208,
-            deswizzle_data(16, 16, 1, &[0u8; 15360], 4, 4, 1, None, 16, 5, 6)
+            deswizzle_surface(16, 16, 1, &[0u8; 15360], 4, 4, 1, None, 16, 5, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             524448,
-            deswizzle_data(256, 256, 1, &[0u8; 540672], 4, 4, 1, None, 16, 9, 6)
+            deswizzle_surface(256, 256, 1, &[0u8; 540672], 4, 4, 1, None, 16, 9, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             664512,
-            deswizzle_data(288, 288, 1, &[0u8; 1204224], 4, 4, 1, None, 16, 9, 6)
+            deswizzle_surface(288, 288, 1, &[0u8; 1204224], 4, 4, 1, None, 16, 9, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2097312,
-            deswizzle_data(512, 512, 1, &[0u8; 2113536], 4, 4, 1, None, 16, 10, 6)
+            deswizzle_surface(512, 512, 1, &[0u8; 2113536], 4, 4, 1, None, 16, 10, 6)
                 .unwrap()
                 .len()
         );
         assert_eq!(
             32928,
-            deswizzle_data(64, 64, 1, &[0u8; 49152], 4, 4, 1, None, 16, 7, 6)
+            deswizzle_surface(64, 64, 1, &[0u8; 49152], 4, 4, 1, None, 16, 7, 6)
                 .unwrap()
                 .len()
         );
