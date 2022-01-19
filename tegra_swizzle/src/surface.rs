@@ -37,7 +37,7 @@ use crate::{
     BlockHeight, SwizzleError,
 };
 
-// TODO: Call this "surface" instead?
+
 // TODO: Create an inner function to reduce duplicate code?
 
 /// Swizzles all the array layers and mipmaps in `source` using the block linear algorithm

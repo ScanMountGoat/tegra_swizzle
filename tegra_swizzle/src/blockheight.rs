@@ -3,8 +3,6 @@
 // This comes from the Ryujinx emulator: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
 use crate::BlockHeight;
 
-// TODO: Separate module for this code?
-// TODO: Document that this is height in bytes.
 /// Calculates the block height parameter to use for the first mip level if no block height is specified.
 ///
 /// # Examples
@@ -44,8 +42,6 @@ pub fn block_height_mip0(height: usize) -> BlockHeight {
     }
 }
 
-// TODO: Rename these inputs to match the conventions of this library.
-// TODO: Rework this example.
 /// Calculates the block height parameter for the given mip level.
 ///
 /// # Examples
@@ -73,8 +69,6 @@ for mip in 0..mipmap_count {
 ```
  */
 pub fn mip_block_height(
-    // TODO: It's more consistent with the rest of the API to explicitly pass in the mip height?
-    // TODO: Should the other examples change to div_round_up instead of using "/ 4"?
     mip_height: usize,
     block_height_mip0: BlockHeight,
 ) -> BlockHeight {

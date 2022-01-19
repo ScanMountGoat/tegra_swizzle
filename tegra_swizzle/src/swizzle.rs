@@ -58,7 +58,7 @@ pub fn swizzle_block_linear(
         });
     }
 
-    // TODO: Can we assume depth is block_depth?
+    // TODO: We can't assume depth is block_depth.
     swizzle_inner(
         width,
         height,
