@@ -1,7 +1,7 @@
 //! Functions for swizzling and deswizzling specific regions of a surface.
 use crate::{
     deswizzled_surface_size, swizzled_surface_size, width_in_gobs, BlockHeight, SwizzleError,
-    GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
+    GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES, blockdepth::block_depth,
 };
 
 /// Swizzles the bytes from `source` using the block linear swizzling algorithm.
@@ -58,7 +58,9 @@ pub fn swizzle_block_linear(
         });
     }
 
-    // TODO: We can't assume depth is block_depth.
+    // TODO: This should be a parameter since it varies by mipmap?
+    let block_depth = block_depth(depth);
+    
     swizzle_inner::<false>(
         width,
         height,
@@ -66,7 +68,7 @@ pub fn swizzle_block_linear(
         source,
         &mut destination,
         block_height as usize,
-        depth,
+        block_depth,
         bytes_per_pixel,
     );
     Ok(destination)
@@ -125,7 +127,9 @@ pub fn deswizzle_block_linear(
         });
     }
 
-    // TODO: We can't assume depth is block_depth.
+    // TODO: This should be a parameter since it varies by mipmap?
+    let block_depth = block_depth(depth);
+
     swizzle_inner::<true>(
         width,
         height,
@@ -133,7 +137,7 @@ pub fn deswizzle_block_linear(
         source,
         &mut destination,
         block_height as usize,
-        depth,
+        block_depth,
         bytes_per_pixel,
     );
     Ok(destination)

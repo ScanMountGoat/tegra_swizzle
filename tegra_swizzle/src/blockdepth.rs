@@ -34,8 +34,12 @@ pub fn mip_block_depth(base_depth: usize, gob_depth: usize, level: usize) -> usi
 
 #[cfg(test)]
 mod tests {
-    // TODO: Find 3d textures to test.
+    // TODO: Create additional test cases based on existing game assets.
+    // 3D textures are rare, so it's hard to find examples for this.
     use super::*;
 
-    // TODO: Test cases?
+    #[test]
+    fn base_block_depth() {
+        assert_eq!(16, block_depth(16));
+    }
 }
