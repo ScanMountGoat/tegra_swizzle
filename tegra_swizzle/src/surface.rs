@@ -33,8 +33,7 @@ use std::{cmp::max, num::NonZeroUsize};
 
 use crate::{
     arrays::align_layer_size, deswizzled_surface_size, div_round_up, mip_block_height,
-    swizzle::deswizzle_block_linear, swizzle::swizzle_block_linear, swizzled_surface_size,
-    BlockHeight, SwizzleError,
+    swizzle::swizzle_inner, swizzled_surface_size, BlockHeight, SwizzleError,
 };
 
 /// The dimensions of a compressed block. Compressed block sizes are usually 4x4.
@@ -141,7 +140,9 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     // TODO: 3D support.
     // TODO: We can assume the total size is 33% larger than the base level.
     // This should eliminate any reallocations.
-    let mut result = Vec::new();
+    // TODO: Investigate if precomputing the exact output size is faster.
+    let estimated_size = width * height * depth * array_count;
+    let mut result = Vec::with_capacity(estimated_size + estimated_size / 2);
 
     let block_width = block_dim.width.get();
     let block_height = block_dim.height.get();
@@ -150,7 +151,17 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     let block_height_mip0 = block_height_mip0
         .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)));
 
-    let mut offset = 0;
+    let align_to_layer = |x: usize| {
+        align_layer_size(
+            x,
+            max(div_round_up(height, block_height), 1),
+            1,
+            block_height_mip0,
+            1,
+        )
+    };
+
+    let mut src_offset = 0;
     for _ in 0..array_count {
         for mip in 0..mipmap_count {
             let mip_width = max(div_round_up(width >> mip, block_width), 1);
@@ -159,30 +170,27 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
             // The block height will likely change for each mip level.
             let mip_block_height = mip_block_height(mip_height, block_height_mip0);
 
-            // TODO: Use the inner function here for fewer heap allocations.
-            let mipmap_data = if DESWIZZLE {
-                deswizzle_block_linear(
-                    mip_width,
-                    mip_height,
-                    1,
-                    &source[offset..], // TODO: Potential panic?
-                    mip_block_height,
-                    bytes_per_pixel,
-                )?
+            let dst_offset = result.len();
+
+            let added_size = if DESWIZZLE {
+                deswizzled_surface_size(mip_width, mip_height, 1, bytes_per_pixel)
             } else {
-                swizzle_block_linear(
-                    mip_width,
-                    mip_height,
-                    1,
-                    &source[offset..], // TODO: Potential panic?
-                    mip_block_height,
-                    bytes_per_pixel,
-                )?
+                swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, bytes_per_pixel)
             };
 
-            result.extend_from_slice(&mipmap_data);
+            result.resize(result.len() + added_size, 0);
+            swizzle_inner::<DESWIZZLE>(
+                mip_width,
+                mip_height,
+                1,
+                &source[src_offset..], // TODO: Potential panic?
+                &mut result[dst_offset..],
+                mip_block_height as usize,
+                1,
+                bytes_per_pixel,
+            );
 
-            offset += if DESWIZZLE {
+            src_offset += if DESWIZZLE {
                 swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, bytes_per_pixel)
             } else {
                 deswizzled_surface_size(mip_width, mip_height, 1, bytes_per_pixel)
@@ -193,22 +201,10 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
         if array_count > 1 {
             if DESWIZZLE {
                 // Align the swizzled source offset.
-                offset = align_layer_size(
-                    offset,
-                    max(div_round_up(height, block_height), 1),
-                    1,
-                    block_height_mip0,
-                    1,
-                );
+                src_offset = align_to_layer(src_offset);
             } else {
                 // Align the swizzled output data.
-                let new_length = align_layer_size(
-                    result.len(),
-                    max(div_round_up(height, block_height), 1),
-                    1,
-                    block_height_mip0,
-                    1,
-                );
+                let new_length = align_to_layer(result.len());
                 result.resize(new_length, 0);
             }
         }
