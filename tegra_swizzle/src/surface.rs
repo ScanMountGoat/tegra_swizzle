@@ -151,7 +151,7 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
         .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)));
 
     let mut offset = 0;
-    for array in 0..array_count {
+    for _ in 0..array_count {
         for mip in 0..mipmap_count {
             let mip_width = max(div_round_up(width >> mip, block_width), 1);
             let mip_height = max(div_round_up(height >> mip, block_height), 1);
@@ -159,6 +159,7 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
             // The block height will likely change for each mip level.
             let mip_block_height = mip_block_height(mip_height, block_height_mip0);
 
+            // TODO: Use the inner function here for fewer heap allocations.
             let mipmap_data = if DESWIZZLE {
                 deswizzle_block_linear(
                     mip_width,
@@ -220,1007 +221,177 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
 mod tests {
     use super::*;
 
+    // Use helper functions to shorten the test cases.
+    fn swizzle_length(
+        width: usize,
+        height: usize,
+        source_length: usize,
+        is_compressed: bool,
+        bpp: usize,
+        layer_count: usize,
+        mipmap_count: usize,
+    ) -> usize {
+        swizzle_surface(
+            width,
+            height,
+            1,
+            &vec![0u8; source_length],
+            if is_compressed {
+                BlockDim::block_4x4()
+            } else {
+                BlockDim::uncompressed()
+            },
+            None,
+            bpp,
+            layer_count,
+            mipmap_count,
+        )
+        .unwrap()
+        .len()
+    }
+
+    fn deswizzle_length(
+        width: usize,
+        height: usize,
+        source_length: usize,
+        is_compressed: bool,
+        bpp: usize,
+        layer_count: usize,
+        mipmap_count: usize,
+    ) -> usize {
+        deswizzle_surface(
+            width,
+            height,
+            1,
+            &vec![0u8; source_length],
+            if is_compressed {
+                BlockDim::block_4x4()
+            } else {
+                BlockDim::uncompressed()
+            },
+            None,
+            bpp,
+            layer_count,
+            mipmap_count,
+        )
+        .unwrap()
+        .len()
+    }
+
     // Expected swizzled sizes are taken from the nutexb footer.
     // Expected deswizzled sizes are the product of the mipmap size sum and the array count.
     #[test]
-    fn swizzle_data_arrays_no_mipmaps_length() {
-        assert_eq!(
-            6144,
-            swizzle_surface(
-                16,
-                16,
-                1,
-                &[0u8; 6144],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            3072,
-            swizzle_surface(16, 16, 1, &[0u8; 768], BlockDim::block_4x4(), None, 8, 1, 6)
-                .unwrap()
-                .len()
-        );
+    fn swizzle_surface_arrays_no_mipmaps_length() {
+        assert_eq!(6144, swizzle_length(16, 16, 6144, false, 4, 1, 6));
+        assert_eq!(3072, swizzle_length(16, 16, 768, true, 8, 1, 6));
         assert_eq!(
             25165824,
-            swizzle_surface(
-                2048,
-                2048,
-                1,
-                &[0u8; 25165824],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
+            swizzle_length(2048, 2048, 25165824, true, 16, 1, 6)
         );
-        assert_eq!(
-            1572864,
-            swizzle_surface(
-                256,
-                256,
-                1,
-                &[0u8; 1572864],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            98304,
-            swizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 98304],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            98304,
-            swizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 98304],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            393216,
-            swizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 393216],
-                BlockDim::uncompressed(),
-                None,
-                16,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
+        assert_eq!(1572864, swizzle_length(256, 256, 1572864, false, 4, 1, 6));
+        assert_eq!(98304, swizzle_length(64, 64, 98304, false, 4, 1, 6));
+        assert_eq!(98304, swizzle_length(64, 64, 98304, false, 4, 1, 6));
+        assert_eq!(393216, swizzle_length(64, 64, 393216, false, 16, 1, 6));
     }
 
     #[test]
-    fn swizzle_data_arrays_mipmaps_length() {
-        assert_eq!(
-            147456,
-            swizzle_surface(
-                128,
-                128,
-                1,
-                &[0u8; 131232],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                8,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            15360,
-            swizzle_surface(
-                16,
-                16,
-                1,
-                &[0u8; 2208],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                5,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            540672,
-            swizzle_surface(
-                256,
-                256,
-                1,
-                &[0u8; 524448],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            1204224,
-            swizzle_surface(
-                288,
-                288,
-                1,
-                &[0u8; 664512],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            2113536,
-            swizzle_surface(
-                512,
-                512,
-                1,
-                &[0u8; 2097312],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                10,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            49152,
-            swizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 32928],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                7,
-                6
-            )
-            .unwrap()
-            .len()
-        );
+    fn swizzle_surface_arrays_mipmaps_length() {
+        assert_eq!(147456, swizzle_length(128, 128, 131232, true, 16, 8, 6));
+        assert_eq!(15360, swizzle_length(16, 16, 2208, true, 16, 5, 6));
+        assert_eq!(540672, swizzle_length(256, 256, 524448, true, 16, 9, 6));
+        assert_eq!(1204224, swizzle_length(288, 288, 664512, true, 16, 9, 6));
+        assert_eq!(2113536, swizzle_length(512, 512, 2097312, true, 16, 10, 6));
+        assert_eq!(49152, swizzle_length(64, 64, 32928, true, 16, 7, 6));
     }
 
     #[test]
-    fn swizzle_data_nutexb_length() {
+    fn swizzle_surface_nutexb_length() {
         // Sizes and parameters taken from Smash Ultimate nutexb files.
         // The deswizzled size is estimated as the product of the mip sizes sum and array count.
         // The swizzled size is taken from the footer.
+        assert_eq!(12800, swizzle_length(100, 100, 6864, true, 8, 7, 1));
+        assert_eq!(360960, swizzle_length(1028, 256, 351376, true, 16, 11, 1));
+        assert_eq!(24064, swizzle_length(128, 32, 21852, false, 4, 8, 1));
         assert_eq!(
-            1024,
-            swizzle_surface(
-                16,
-                16,
-                1,
-                &[0u8; 1024],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                1
-            )
-            .unwrap()
-            .len()
+            2099712,
+            swizzle_length(1536, 1024, 2097184, true, 16, 11, 1)
         );
+        assert_eq!(35328, swizzle_length(180, 180, 21992, true, 8, 8, 1));
         assert_eq!(
-            147968,
-            swizzle_surface(
-                400,
-                360,
-                1,
-                &[0u8; 96304],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
+            4546048,
+            swizzle_length(2048, 1344, 3670320, true, 16, 12, 1)
         );
+        assert_eq!(17920, swizzle_length(256, 32, 11024, true, 16, 9, 1));
+        assert_eq!(58368, swizzle_length(320, 128, 54672, true, 16, 9, 1));
+        assert_eq!(125440, swizzle_length(340, 340, 77840, true, 8, 9, 1));
+        assert_eq!(147968, swizzle_length(400, 400, 106864, true, 8, 9, 1));
+        assert_eq!(2048, swizzle_length(4, 24, 384, false, 4, 1, 1));
+        assert_eq!(351744, swizzle_length(512, 384, 262192, true, 16, 10, 1));
+        assert_eq!(440832, swizzle_length(640, 640, 273120, true, 8, 10, 1));
+        assert_eq!(26624, swizzle_length(64, 512, 21896, true, 8, 10, 1));
+        assert_eq!(280064, swizzle_length(800, 400, 213576, true, 8, 10, 1));
         assert_eq!(
-            176640,
-            swizzle_surface(
-                256,
-                384,
-                1,
-                &[0u8; 131104],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            20480,
-            swizzle_surface(
-                96,
-                256,
-                1,
-                &[0u8; 16424],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            21504,
-            swizzle_surface(
-                100,
-                100,
-                1,
-                &[0u8; 13728],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                7,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            22371840,
-            swizzle_surface(
-                4096,
-                4096,
-                1,
-                &[0u8; 22369648],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                13,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            256000,
-            swizzle_surface(
-                360,
-                300,
-                1,
-                &[0u8; 144960],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            2624512,
-            swizzle_surface(
-                1920,
-                848,
-                1,
-                &[0u8; 2171984],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                11,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            2949120,
-            swizzle_surface(
-                2880,
-                1632,
-                1,
-                &[0u8; 2350080],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                1,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            31232,
-            swizzle_surface(
-                148,
-                148,
-                1,
-                &[0u8; 14936],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                8,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            34816,
-            swizzle_surface(
-                4,
-                1024,
-                1,
-                &[0u8; 4104],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                11,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            5594624,
-            swizzle_surface(
-                2048,
-                2048,
-                1,
-                &[0u8; 5592432],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                12,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            5632,
-            swizzle_surface(
-                64,
-                16,
-                1,
-                &[0u8; 1424],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                7,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            5632,
-            swizzle_surface(64, 8, 1, &[0u8; 784], BlockDim::block_4x4(), None, 16, 7, 1)
-                .unwrap()
-                .len()
-        );
-        assert_eq!(
-            700928,
-            swizzle_surface(
-                512,
-                768,
-                1,
-                &[0u8; 524320],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                10,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            701952,
-            swizzle_surface(
-                1024,
-                512,
-                1,
-                &[0u8; 699088],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                11,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            89088,
-            swizzle_surface(
-                128,
-                128,
-                1,
-                &[0u8; 87380],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                8,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            90112,
-            swizzle_surface(
-                512,
-                256,
-                1,
-                &[0u8; 87400],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                10,
-                1
-            )
-            .unwrap()
-            .len()
+            16777216,
+            swizzle_length(8192, 2048, 16777216, true, 16, 1, 1)
         );
     }
 
     #[test]
-    fn deswizzle_data_nutexb_length() {
+    fn deswizzle_surface_nutexb_length() {
         // Sizes and parameters taken from Smash Ultimate nutexb files.
         // The deswizzled size is estimated as the product of the mip sizes sum and array count.
         // The swizzled size is taken from the footer.
+        assert_eq!(6864, deswizzle_length(100, 100, 12800, true, 8, 7, 1));
+        assert_eq!(351376, deswizzle_length(1028, 256, 360960, true, 16, 11, 1));
+        assert_eq!(21852, deswizzle_length(128, 32, 24064, false, 4, 8, 1));
         assert_eq!(
-            1024,
-            deswizzle_surface(
-                16,
-                16,
-                1,
-                &[0u8; 1024],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                1
-            )
-            .unwrap()
-            .len()
+            2097184,
+            deswizzle_length(1536, 1024, 2099712, true, 16, 11, 1)
         );
+        assert_eq!(21992, deswizzle_length(180, 180, 35328, true, 8, 8, 1));
         assert_eq!(
-            131104,
-            deswizzle_surface(
-                256,
-                384,
-                1,
-                &[0u8; 176640],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
+            3670320,
+            deswizzle_length(2048, 1344, 4546048, true, 16, 12, 1)
         );
+        assert_eq!(11024, deswizzle_length(256, 32, 17920, true, 16, 9, 1));
+        assert_eq!(54672, deswizzle_length(320, 128, 58368, true, 16, 9, 1));
+        assert_eq!(77840, deswizzle_length(340, 340, 125440, true, 8, 9, 1));
+        assert_eq!(106864, deswizzle_length(400, 400, 147968, true, 8, 9, 1));
+        assert_eq!(384, deswizzle_length(4, 24, 2048, false, 4, 1, 1));
+        assert_eq!(262192, deswizzle_length(512, 384, 351744, true, 16, 10, 1));
+        assert_eq!(273120, deswizzle_length(640, 640, 440832, true, 8, 10, 1));
+        assert_eq!(21896, deswizzle_length(64, 512, 26624, true, 8, 10, 1));
+        assert_eq!(213576, deswizzle_length(800, 400, 280064, true, 8, 10, 1));
         assert_eq!(
-            13728,
-            deswizzle_surface(
-                100,
-                100,
-                1,
-                &[0u8; 21504],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                7,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            1424,
-            deswizzle_surface(
-                64,
-                16,
-                1,
-                &[0u8; 5632],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                7,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            144960,
-            deswizzle_surface(
-                360,
-                300,
-                1,
-                &[0u8; 256000],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            14936,
-            deswizzle_surface(
-                148,
-                148,
-                1,
-                &[0u8; 31232],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                8,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            16424,
-            deswizzle_surface(
-                96,
-                256,
-                1,
-                &[0u8; 20480],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            2171984,
-            deswizzle_surface(
-                1920,
-                848,
-                1,
-                &[0u8; 2624512],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                11,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            22369648,
-            deswizzle_surface(
-                4096,
-                4096,
-                1,
-                &[0u8; 22371840],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                13,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            2350080,
-            deswizzle_surface(
-                2880,
-                1632,
-                1,
-                &[0u8; 2949120],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                1,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            4104,
-            deswizzle_surface(
-                4,
-                1024,
-                1,
-                &[0u8; 34816],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                11,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            524320,
-            deswizzle_surface(
-                512,
-                768,
-                1,
-                &[0u8; 700928],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                10,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            5592432,
-            deswizzle_surface(
-                2048,
-                2048,
-                1,
-                &[0u8; 5594624],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                12,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            699088,
-            deswizzle_surface(
-                1024,
-                512,
-                1,
-                &[0u8; 701952],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                11,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            784,
-            deswizzle_surface(
-                64,
-                8,
-                1,
-                &[0u8; 5632],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                7,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            87380,
-            deswizzle_surface(
-                128,
-                128,
-                1,
-                &[0u8; 89088],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                8,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            87400,
-            deswizzle_surface(
-                512,
-                256,
-                1,
-                &[0u8; 90112],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                10,
-                1
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            96304,
-            deswizzle_surface(
-                400,
-                360,
-                1,
-                &[0u8; 147968],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                9,
-                1
-            )
-            .unwrap()
-            .len()
+            16777216,
+            deswizzle_length(8192, 2048, 16777216, true, 16, 1, 1)
         );
     }
 
     #[test]
-    fn deswizzle_data_arrays_no_mipmaps_length() {
-        assert_eq!(
-            6144,
-            deswizzle_surface(
-                16,
-                16,
-                1,
-                &[0u8; 6144],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            768,
-            deswizzle_surface(
-                16,
-                16,
-                1,
-                &[0u8; 3072],
-                BlockDim::block_4x4(),
-                None,
-                8,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
+    fn deswizzle_surface_arrays_no_mipmaps_length() {
+        assert_eq!(6144, deswizzle_length(16, 16, 6144, false, 4, 1, 6));
+        assert_eq!(768, deswizzle_length(16, 16, 3072, true, 8, 1, 6));
         assert_eq!(
             25165824,
-            deswizzle_surface(
-                2048,
-                2048,
-                1,
-                &[0u8; 25165824],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
+            deswizzle_length(2048, 2048, 25165824, true, 16, 1, 6)
         );
-        assert_eq!(
-            1572864,
-            deswizzle_surface(
-                256,
-                256,
-                1,
-                &[0u8; 1572864],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            98304,
-            deswizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 98304],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            98304,
-            deswizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 98304],
-                BlockDim::uncompressed(),
-                None,
-                4,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            393216,
-            deswizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 393216],
-                BlockDim::uncompressed(),
-                None,
-                16,
-                1,
-                6
-            )
-            .unwrap()
-            .len()
-        );
+        assert_eq!(1572864, deswizzle_length(256, 256, 1572864, false, 4, 1, 6));
+        assert_eq!(98304, deswizzle_length(64, 64, 98304, false, 4, 1, 6));
+        assert_eq!(98304, deswizzle_length(64, 64, 98304, false, 4, 1, 6));
+        assert_eq!(393216, deswizzle_length(64, 64, 393216, false, 16, 1, 6));
     }
 
     #[test]
-    fn deswizzle_data_arrays_mipmaps_length() {
-        assert_eq!(
-            131232,
-            deswizzle_surface(
-                128,
-                128,
-                1,
-                &[0u8; 147456],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                8,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            2208,
-            deswizzle_surface(
-                16,
-                16,
-                1,
-                &[0u8; 15360],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                5,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            524448,
-            deswizzle_surface(
-                256,
-                256,
-                1,
-                &[0u8; 540672],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                6
-            )
-            .unwrap()
-            .len()
-        );
-        assert_eq!(
-            664512,
-            deswizzle_surface(
-                288,
-                288,
-                1,
-                &[0u8; 1204224],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                9,
-                6
-            )
-            .unwrap()
-            .len()
-        );
+    fn deswizzle_surface_arrays_mipmaps_length() {
+        assert_eq!(131232, deswizzle_length(128, 128, 147456, true, 16, 8, 6));
+        assert_eq!(2208, deswizzle_length(16, 16, 15360, true, 16, 5, 6));
+        assert_eq!(524448, deswizzle_length(256, 256, 540672, true, 16, 9, 6));
+        assert_eq!(664512, deswizzle_length(288, 288, 1204224, true, 16, 9, 6));
         assert_eq!(
             2097312,
-            deswizzle_surface(
-                512,
-                512,
-                1,
-                &[0u8; 2113536],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                10,
-                6
-            )
-            .unwrap()
-            .len()
+            deswizzle_length(512, 512, 2113536, true, 16, 10, 6)
         );
-        assert_eq!(
-            32928,
-            deswizzle_surface(
-                64,
-                64,
-                1,
-                &[0u8; 49152],
-                BlockDim::block_4x4(),
-                None,
-                16,
-                7,
-                6
-            )
-            .unwrap()
-            .len()
-        );
+        assert_eq!(32928, deswizzle_length(64, 64, 49152, true, 16, 7, 6));
     }
 }
