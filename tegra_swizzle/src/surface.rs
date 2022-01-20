@@ -32,8 +32,8 @@ Layer L Mip M
 use std::{cmp::max, num::NonZeroUsize};
 
 use crate::{
-    arrays::align_layer_size, deswizzled_surface_size, div_round_up, mip_block_height,
-    swizzle::swizzle_inner, swizzled_surface_size, BlockHeight, SwizzleError,
+    arrays::align_layer_size, blockdepth::block_depth, deswizzled_surface_size, div_round_up,
+    mip_block_height, swizzle::swizzle_inner, swizzled_surface_size, BlockHeight, SwizzleError,
 };
 
 /// The dimensions of a compressed block. Compressed block sizes are usually 4x4.
@@ -145,6 +145,7 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
 
     let block_width = block_dim.width.get();
     let block_height = block_dim.height.get();
+    let block_depth = block_dim.depth.get();
 
     // The block height can be inferred if not specified.
     let block_height_mip0 = block_height_mip0
@@ -165,11 +166,14 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
         for mip in 0..mipmap_count {
             let mip_width = max(div_round_up(width >> mip, block_width), 1);
             let mip_height = max(div_round_up(height >> mip, block_height), 1);
+            let mip_depth = max(div_round_up(depth >> mip, block_depth), 1);
+
             let mip_block_height = mip_block_height(mip_height, block_height_mip0);
 
             swizzle_mipmap::<DESWIZZLE>(
                 mip_width,
                 mip_height,
+                mip_depth,
                 mip_block_height,
                 bytes_per_pixel,
                 source,
@@ -197,14 +201,15 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
 fn swizzle_mipmap<const DESWIZZLE: bool>(
     with: usize,
     height: usize,
+    depth: usize,
     block_height: BlockHeight,
     bytes_per_pixel: usize,
     source: &[u8],
     result: &mut Vec<u8>,
     src_offset: &mut usize,
 ) -> Result<(), SwizzleError> {
-    let swizzled_size = swizzled_surface_size(with, height, 1, block_height, bytes_per_pixel);
-    let deswizzled_size = deswizzled_surface_size(with, height, 1, bytes_per_pixel);
+    let swizzled_size = swizzled_surface_size(with, height, depth, block_height, bytes_per_pixel);
+    let deswizzled_size = deswizzled_surface_size(with, height, depth, bytes_per_pixel);
 
     // Calculate the section of the buffer to swizzle.
     let dst_offset = result.len();
@@ -231,15 +236,18 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
         });
     }
 
+    // TODO: This should be a parameter since it varies by mipmap?
+    let block_depth = block_depth(depth);
+
     // Swizzle the data and move to the next section.
     swizzle_inner::<DESWIZZLE>(
         with,
         height,
-        1,
+        depth,
         &source[*src_offset..],
         &mut result[dst_offset..],
         block_height as usize,
-        1,
+        block_depth,
         bytes_per_pixel,
     );
 
@@ -266,10 +274,53 @@ mod tests {
         layer_count: usize,
         mipmap_count: usize,
     ) -> usize {
-        swizzle_surface(
+        swizzle_length_3d(
             width,
             height,
             1,
+            source_length,
+            is_compressed,
+            bpp,
+            layer_count,
+            mipmap_count,
+        )
+    }
+
+    fn deswizzle_length(
+        width: usize,
+        height: usize,
+        source_length: usize,
+        is_compressed: bool,
+        bpp: usize,
+        layer_count: usize,
+        mipmap_count: usize,
+    ) -> usize {
+        deswizzle_length_3d(
+            width,
+            height,
+            1,
+            source_length,
+            is_compressed,
+            bpp,
+            layer_count,
+            mipmap_count,
+        )
+    }
+
+    fn swizzle_length_3d(
+        width: usize,
+        height: usize,
+        depth: usize,
+        source_length: usize,
+        is_compressed: bool,
+        bpp: usize,
+        layer_count: usize,
+        mipmap_count: usize,
+    ) -> usize {
+        swizzle_surface(
+            width,
+            height,
+            depth,
             &vec![0u8; source_length],
             if is_compressed {
                 BlockDim::block_4x4()
@@ -285,9 +336,10 @@ mod tests {
         .len()
     }
 
-    fn deswizzle_length(
+    fn deswizzle_length_3d(
         width: usize,
         height: usize,
+        depth: usize,
         source_length: usize,
         is_compressed: bool,
         bpp: usize,
@@ -297,7 +349,7 @@ mod tests {
         deswizzle_surface(
             width,
             height,
-            1,
+            depth,
             &vec![0u8; source_length],
             if is_compressed {
                 BlockDim::block_4x4()
@@ -428,5 +480,18 @@ mod tests {
             deswizzle_length(512, 512, 2113536, true, 16, 10, 6)
         );
         assert_eq!(32928, deswizzle_length(64, 64, 49152, true, 16, 7, 6));
+    }
+
+    #[test]
+    fn swizzle_surface_3d() {
+        assert_eq!(16384, swizzle_length_3d(16, 16, 16, 16384, false, 4, 1, 1));
+    }
+
+    #[test]
+    fn deswizzle_surface_3d() {
+        assert_eq!(
+            16384,
+            deswizzle_length_3d(16, 16, 16, 16384, false, 4, 1, 1)
+        );
     }
 }
