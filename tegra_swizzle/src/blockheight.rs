@@ -68,10 +68,7 @@ for mip in 0..mipmap_count {
 }
 ```
  */
-pub fn mip_block_height(
-    mip_height: usize,
-    block_height_mip0: BlockHeight,
-) -> BlockHeight {
+pub fn mip_block_height(mip_height: usize, block_height_mip0: BlockHeight) -> BlockHeight {
     let mut block_height = block_height_mip0 as usize;
     while mip_height <= (block_height / 2) * 8 && block_height > 1 {
         block_height /= 2;

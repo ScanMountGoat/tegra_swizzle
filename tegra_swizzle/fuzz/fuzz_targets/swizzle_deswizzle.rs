@@ -36,7 +36,7 @@ fuzz_target!(|input: Input| {
     let mut rng: StdRng = SeedableRng::from_seed(seed);
     let deswizzled: Vec<_> = (0..deswizzled_size).map(|_| rng.gen_range::<u8, _>(0..=255)).collect();
 
-    let swizzled = tegra_swizzle::swizzle_block_linear(
+    let swizzled = tegra_swizzle::swizzle::swizzle_block_linear(
         input.width,
         input.height,
         input.depth,
@@ -45,7 +45,7 @@ fuzz_target!(|input: Input| {
         input.bytes_per_pixel,
     ).unwrap();
 
-    let new_deswizzled = tegra_swizzle::deswizzle_block_linear(
+    let new_deswizzled = tegra_swizzle::swizzle::deswizzle_block_linear(
         input.width,
         input.height,
         input.depth,

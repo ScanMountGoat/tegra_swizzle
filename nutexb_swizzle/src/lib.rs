@@ -51,7 +51,7 @@ pub fn swizzle_data(
 
     let block_height = block_height(height_in_tiles);
 
-    let output_data = tegra_swizzle::swizzle_block_linear(
+    let output_data = tegra_swizzle::swizzle::swizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
         1,
@@ -93,7 +93,7 @@ pub fn deswizzle_data(
 
     let block_height = block_height(height_in_tiles);
 
-    let output_data = tegra_swizzle::deswizzle_block_linear(
+    let output_data = tegra_swizzle::swizzle::deswizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
         1,

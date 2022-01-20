@@ -59,7 +59,7 @@ pub fn swizzle_block_linear(
     }
 
     // TODO: We can't assume depth is block_depth.
-    swizzle_inner(
+    swizzle_inner::<false>(
         width,
         height,
         depth,
@@ -68,7 +68,6 @@ pub fn swizzle_block_linear(
         block_height as usize,
         depth,
         bytes_per_pixel,
-        false,
     );
     Ok(destination)
 }
@@ -127,7 +126,7 @@ pub fn deswizzle_block_linear(
     }
 
     // TODO: We can't assume depth is block_depth.
-    swizzle_inner(
+    swizzle_inner::<true>(
         width,
         height,
         depth,
@@ -136,12 +135,11 @@ pub fn deswizzle_block_linear(
         block_height as usize,
         depth,
         bytes_per_pixel,
-        true,
     );
     Ok(destination)
 }
 
-pub(crate) fn swizzle_inner(
+pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
     width: usize,
     height: usize,
     depth: usize,
@@ -150,7 +148,6 @@ pub(crate) fn swizzle_inner(
     block_height: usize,
     block_depth: usize,
     bytes_per_pixel: usize,
-    deswizzle: bool,
 ) {
     let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
 
@@ -196,7 +193,7 @@ pub(crate) fn swizzle_inner(
                         + x0;
 
                     // Use optimized code to reassign bytes.
-                    if deswizzle {
+                    if DESWIZZLE {
                         deswizzle_complete_gob(
                             &mut destination[linear_offset..],
                             &source[gob_address..],
@@ -212,7 +209,7 @@ pub(crate) fn swizzle_inner(
                 } else {
                     // There may be a row and column with partially filled GOBs.
                     // Fall back to a slow implementation that iterates over each byte.
-                    swizzle_deswizzle_gob(
+                    swizzle_deswizzle_gob::<DESWIZZLE>(
                         destination,
                         source,
                         x0,
@@ -222,7 +219,6 @@ pub(crate) fn swizzle_inner(
                         height,
                         bytes_per_pixel,
                         gob_address,
-                        deswizzle,
                     );
                 }
             }
@@ -230,7 +226,7 @@ pub(crate) fn swizzle_inner(
     }
 }
 
-fn swizzle_deswizzle_gob(
+fn swizzle_deswizzle_gob<const DESWIZZLE: bool>(
     destination: &mut [u8],
     source: &[u8],
     x0: usize,
@@ -240,7 +236,6 @@ fn swizzle_deswizzle_gob(
     height: usize,
     bytes_per_pixel: usize,
     gob_address: usize,
-    deswizzle: bool,
 ) {
     for y in 0..GOB_HEIGHT_IN_BYTES {
         for x in 0..GOB_WIDTH_IN_BYTES {
@@ -252,7 +247,7 @@ fn swizzle_deswizzle_gob(
                     + x;
 
                 // Swap the addresses for swizzling vs deswizzling.
-                if deswizzle {
+                if DESWIZZLE {
                     destination[linear_offset] = source[swizzled_offset];
                 } else {
                     destination[swizzled_offset] = source[linear_offset];

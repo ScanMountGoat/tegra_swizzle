@@ -33,3 +33,15 @@ name = "swizzle_deswizzle"
 path = "fuzz_targets/swizzle_deswizzle.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "deswizzle_surface"
+path = "fuzz_targets/deswizzle_surface.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "swizzle_surface"
+path = "fuzz_targets/swizzle_surface.rs"
+test = false
+doc = false
