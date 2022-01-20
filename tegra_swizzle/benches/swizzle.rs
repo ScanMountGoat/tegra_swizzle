@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use tegra_swizzle::swizzle_block_linear;
+use tegra_swizzle::swizzle::swizzle_block_linear;
 use tegra_swizzle::swizzled_surface_size;
 use tegra_swizzle::BlockHeight;
 
