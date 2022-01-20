@@ -148,8 +148,13 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     let block_depth = block_dim.depth.get();
 
     // The block height can be inferred if not specified.
-    let block_height_mip0 = block_height_mip0
-        .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)));
+    // TODO: Enforce a block height of 1 for depth textures elsewhere?
+    let block_height_mip0 = if depth == 1 {
+        block_height_mip0
+            .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)))
+    } else {
+        BlockHeight::One
+    };
 
     let align_to_layer = |x: usize| {
         align_layer_size(
@@ -483,15 +488,20 @@ mod tests {
     }
 
     #[test]
-    fn swizzle_surface_3d() {
-        assert_eq!(16384, swizzle_length_3d(16, 16, 16, 16384, false, 4, 1, 1));
+    fn swizzle_surface_rgba_16_16_16() {
+        let input = include_bytes!("../../swizzle_data/16_16_16_rgba_deswizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/16_16_16_rgba_swizzled.bin");
+        let actual =
+            swizzle_surface(16, 16, 16, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
+        assert_eq!(expected, &actual[..]);
     }
 
     #[test]
-    fn deswizzle_surface_3d() {
-        assert_eq!(
-            16384,
-            deswizzle_length_3d(16, 16, 16, 16384, false, 4, 1, 1)
-        );
+    fn deswizzle_surface_rgba_16_16_16() {
+        let input = include_bytes!("../../swizzle_data/16_16_16_rgba_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/16_16_16_rgba_deswizzled.bin");
+        let actual =
+            deswizzle_surface(16, 16, 16, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
+        assert_eq!(expected, &actual[..]);
     }
 }
