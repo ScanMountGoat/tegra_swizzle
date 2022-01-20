@@ -6,11 +6,11 @@
 //!
 //! Use [deswizzle_surface] for reading swizzled surfaces into a single deswizzled `Vec<u8>`.
 //! This output can be used as is for creating DDS files.
-//! Modern graphics APIs like Vulkan support this dense layout for initializing all
+//! Modern graphics APIs like Vulkan also support this dense layout for initializing all
 //! array layers and mipmaps for a texture in a single API call.
 //!
 //! Use [swizzle_surface] for writing a swizzled surface from a combined buffer like the result of [deswizzle_surface] or a DDS file.
-//! This is the image data layout expected for some texture file formats.
+//! The result of [swizzle_surface] is the layout expected for many texture file formats for console games targeting the Tegra X1.
 //!
 //! # Examples
 //! Array layers and mipmaps are ordered by layer and then mipmap.
@@ -20,8 +20,8 @@
 Layer 0 Mip 0
 Layer 0 Mip 1
 ...
-Layer 0 Mip M,
-Layer 1 Mip 0,
+Layer 0 Mip M
+Layer 1 Mip 0
 Layer 1 Mip 1
 ...
 Layer L Mip M
