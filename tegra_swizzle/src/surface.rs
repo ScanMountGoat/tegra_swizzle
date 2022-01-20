@@ -138,9 +138,8 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
     // TODO: 3D support.
-    // TODO: We can assume the total size is 33% larger than the base level.
-    // This should eliminate any reallocations.
-    // TODO: Investigate if precomputing the exact output size is faster.
+    // TODO: We can assume the total size is at most 33% larger than the base level?
+    // Reserve enough size for the entire surface to reduce allocations.
     let estimated_size = width * height * depth * array_count;
     let mut result = Vec::with_capacity(estimated_size + estimated_size / 2);
 
@@ -166,35 +165,17 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
         for mip in 0..mipmap_count {
             let mip_width = max(div_round_up(width >> mip, block_width), 1);
             let mip_height = max(div_round_up(height >> mip, block_height), 1);
-
-            // The block height will likely change for each mip level.
             let mip_block_height = mip_block_height(mip_height, block_height_mip0);
 
-            let dst_offset = result.len();
-
-            let added_size = if DESWIZZLE {
-                deswizzled_surface_size(mip_width, mip_height, 1, bytes_per_pixel)
-            } else {
-                swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, bytes_per_pixel)
-            };
-
-            result.resize(result.len() + added_size, 0);
-            swizzle_inner::<DESWIZZLE>(
+            swizzle_mipmap::<DESWIZZLE>(
                 mip_width,
                 mip_height,
-                1,
-                &source[src_offset..], // TODO: Potential panic?
-                &mut result[dst_offset..],
-                mip_block_height as usize,
-                1,
+                mip_block_height,
                 bytes_per_pixel,
-            );
-
-            src_offset += if DESWIZZLE {
-                swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, bytes_per_pixel)
-            } else {
-                deswizzled_surface_size(mip_width, mip_height, 1, bytes_per_pixel)
-            };
+                source,
+                &mut result,
+                &mut src_offset,
+            )?;
         }
 
         // Alignment for array layers.
@@ -211,6 +192,64 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     }
 
     Ok(result)
+}
+
+fn swizzle_mipmap<const DESWIZZLE: bool>(
+    with: usize,
+    height: usize,
+    block_height: BlockHeight,
+    bytes_per_pixel: usize,
+    source: &[u8],
+    result: &mut Vec<u8>,
+    src_offset: &mut usize,
+) -> Result<(), SwizzleError> {
+    let swizzled_size = swizzled_surface_size(with, height, 1, block_height, bytes_per_pixel);
+    let deswizzled_size = deswizzled_surface_size(with, height, 1, bytes_per_pixel);
+
+    // Calculate the section of the buffer to swizzle.
+    let dst_offset = result.len();
+
+    let added_size = if DESWIZZLE {
+        deswizzled_size
+    } else {
+        swizzled_size
+    };
+    result.resize(result.len() + added_size, 0);
+
+    // Make sure the source has enough space.
+    if DESWIZZLE && source.len() < *src_offset + swizzled_size {
+        return Err(SwizzleError::NotEnoughData {
+            expected_size: 0,
+            actual_size: source.len(),
+        });
+    }
+
+    if !DESWIZZLE && source.len() < *src_offset + deswizzled_size {
+        return Err(SwizzleError::NotEnoughData {
+            expected_size: 0,
+            actual_size: source.len(),
+        });
+    }
+
+    // Swizzle the data and move to the next section.
+    swizzle_inner::<DESWIZZLE>(
+        with,
+        height,
+        1,
+        &source[*src_offset..],
+        &mut result[dst_offset..],
+        block_height as usize,
+        1,
+        bytes_per_pixel,
+    );
+
+    *src_offset += if DESWIZZLE {
+        swizzled_size
+    } else {
+        deswizzled_size
+    };
+
+    Ok(())
 }
 
 #[cfg(test)]
