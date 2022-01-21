@@ -37,6 +37,7 @@ use crate::{
 };
 
 /// The dimensions of a compressed block. Compressed block sizes are usually 4x4.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockDim {
     /// The width of the block in pixels.
     pub width: NonZeroUsize,
