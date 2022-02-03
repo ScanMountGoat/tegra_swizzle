@@ -1,2 +1,2 @@
 tag-prefix = ""
-no-dev-version = true
+dev-version = false

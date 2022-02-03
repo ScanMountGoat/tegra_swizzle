@@ -1,2 +1,2 @@
-disable-tag = true
-disable-publish = true
+tag = false
+publish = false
