@@ -106,8 +106,8 @@ pub enum BlockHeight {
 #[derive(Debug)]
 pub enum SwizzleError {
     /// The source data does not contain enough bytes.
-    /// The input length should be at least [swizzled_surface_size] many bytes for deswizzling
-    /// and at least [deswizzled_surface_size] many bytes for swizzling.
+    /// The input length should be at least [swizzled_mip_size] many bytes for deswizzling
+    /// and at least [deswizzled_mip_size] many bytes for swizzling.
     NotEnoughData {
         expected_size: usize,
         actual_size: usize,
@@ -157,23 +157,23 @@ impl BlockHeight {
 }
 
 /// Calculates the size in bytes for the swizzled data for the given dimensions for the block linear format.
-/// The result of [swizzled_surface_size] will always be at least as large as [deswizzled_surface_size]
+/// The result of [swizzled_mip_size] will always be at least as large as [deswizzled_mip_size]
 /// for the same surface parameters.
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
 ```rust
-use tegra_swizzle::{BlockHeight, swizzled_surface_size};
+use tegra_swizzle::{BlockHeight, swizzled_mip_size};
 
 let width = 256;
 let height = 256;
-assert_eq!(262144, swizzled_surface_size(width, height, 1, BlockHeight::Sixteen, 4));
+assert_eq!(262144, swizzled_mip_size(width, height, 1, BlockHeight::Sixteen, 4));
 ```
  */
 /// For compressed formats with multiple pixels in a block, divide the width and height by the block dimensions.
 /**
 ```rust
-# use tegra_swizzle::{BlockHeight, swizzled_surface_size};
+# use tegra_swizzle::{BlockHeight, swizzled_mip_size};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
 use tegra_swizzle::div_round_up;
 
@@ -181,11 +181,11 @@ let width = 256;
 let height = 256;
 assert_eq!(
     131072,
-    swizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, BlockHeight::Sixteen, 16)
+    swizzled_mip_size(div_round_up(width, 4), div_round_up(height, 4), 1, BlockHeight::Sixteen, 16)
 );
 ```
  */
-pub const fn swizzled_surface_size(
+pub const fn swizzled_mip_size(
     width: usize,
     height: usize,
     depth: usize,
@@ -202,22 +202,22 @@ const fn height_in_blocks(height: usize, block_height: usize) -> usize {
 }
 
 /// Calculates the size in bytes for the deswizzled data for the given dimensions.
-/// Compare with [swizzled_surface_size].
+/// Compare with [swizzled_mip_size].
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
 ```rust
-use tegra_swizzle::{BlockHeight, deswizzled_surface_size};
+use tegra_swizzle::{BlockHeight, deswizzled_mip_size};
 
 let width = 256;
 let height = 256;
-assert_eq!(262144, deswizzled_surface_size(width, height, 1, 4));
+assert_eq!(262144, deswizzled_mip_size(width, height, 1, 4));
 ```
  */
 /// For compressed formats with multiple pixels in a block, divide the width and height by the block dimensions.
 /**
 ```rust
-# use tegra_swizzle::{BlockHeight, deswizzled_surface_size};
+# use tegra_swizzle::{BlockHeight, deswizzled_mip_size};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
 use tegra_swizzle::div_round_up;
 
@@ -225,11 +225,11 @@ let width = 256;
 let height = 256;
 assert_eq!(
     65536,
-    deswizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, 16)
+    deswizzled_mip_size(div_round_up(width, 4), div_round_up(height, 4), 1, 16)
 );
 ```
  */
-pub const fn deswizzled_surface_size(
+pub const fn deswizzled_mip_size(
     width: usize,
     height: usize,
     depth: usize,
@@ -281,39 +281,36 @@ mod tests {
     }
 
     #[test]
-    fn deswizzled_surface_sizes() {
-        assert_eq!(3145728, deswizzled_surface_size(512, 512, 3, 4));
+    fn deswizzled_mip_sizes() {
+        assert_eq!(3145728, deswizzled_mip_size(512, 512, 3, 4));
     }
 
     #[test]
     fn surface_sizes_block4() {
         assert_eq!(
             1048576,
-            swizzled_surface_size(512, 512, 1, BlockHeight::Sixteen, 4)
+            swizzled_mip_size(512, 512, 1, BlockHeight::Sixteen, 4)
         );
     }
 
     #[test]
     fn surface_sizes_3d() {
-        assert_eq!(
-            16384,
-            swizzled_surface_size(16, 16, 16, BlockHeight::One, 4)
-        );
+        assert_eq!(16384, swizzled_mip_size(16, 16, 16, BlockHeight::One, 4));
     }
 
     #[test]
     fn surface_sizes_block16() {
         assert_eq!(
             163840,
-            swizzled_surface_size(320 / 4, 320 / 4, 1, BlockHeight::Sixteen, 16)
+            swizzled_mip_size(320 / 4, 320 / 4, 1, BlockHeight::Sixteen, 16)
         );
         assert_eq!(
             40960,
-            swizzled_surface_size(160 / 4, 160 / 4, 1, BlockHeight::Four, 16)
+            swizzled_mip_size(160 / 4, 160 / 4, 1, BlockHeight::Four, 16)
         );
         assert_eq!(
             1024,
-            swizzled_surface_size(32 / 4, 32 / 4, 1, BlockHeight::One, 16)
+            swizzled_mip_size(32 / 4, 32 / 4, 1, BlockHeight::One, 16)
         );
     }
 }

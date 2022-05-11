@@ -32,8 +32,8 @@ Layer L Mip M
 use std::{cmp::max, num::NonZeroUsize};
 
 use crate::{
-    arrays::align_layer_size, blockdepth::block_depth, deswizzled_surface_size, div_round_up,
-    mip_block_height, swizzle::swizzle_inner, swizzled_surface_size, BlockHeight, SwizzleError,
+    arrays::align_layer_size, blockdepth::block_depth, deswizzled_mip_size, div_round_up,
+    mip_block_height, swizzle::swizzle_inner, swizzled_mip_size, BlockHeight, SwizzleError,
 };
 
 /// The dimensions of a compressed block. Compressed block sizes are usually 4x4.
@@ -214,8 +214,8 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
     result: &mut Vec<u8>,
     src_offset: &mut usize,
 ) -> Result<(), SwizzleError> {
-    let swizzled_size = swizzled_surface_size(with, height, depth, block_height, bytes_per_pixel);
-    let deswizzled_size = deswizzled_surface_size(with, height, depth, bytes_per_pixel);
+    let swizzled_size = swizzled_mip_size(with, height, depth, block_height, bytes_per_pixel);
+    let deswizzled_size = deswizzled_mip_size(with, height, depth, bytes_per_pixel);
 
     // Calculate the section of the buffer to swizzle.
     let dst_offset = result.len();

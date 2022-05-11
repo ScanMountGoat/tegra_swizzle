@@ -4,8 +4,8 @@ use crate::BlockHeight;
 /// Swizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
 /// See the safe alternative [swizzle_block_linear](super::swizzle_block_linear).
 /// # Safety
-/// `source` and `source_len` should refer to an array with at least as many bytes as the result of [deswizzled_surface_size].
-/// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [swizzled_surface_size].
+/// `source` and `source_len` should refer to an array with at least as many bytes as the result of [deswizzled_mip_size].
+/// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [swizzled_mip_size].
 ///
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
@@ -39,8 +39,8 @@ pub unsafe extern "C" fn swizzle_block_linear(
 /// Deswizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
 /// See the safe alternative [deswizzle_block_linear](super::deswizzle_block_linear).
 /// # Safety
-/// `source` and `source_len` should refer to an array with at least as many bytes as the result of [swizzled_surface_size].
-/// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [deswizzled_surface_size].
+/// `source` and `source_len` should refer to an array with at least as many bytes as the result of [swizzled_mip_size].
+/// Similarly, `destination` and `destination_len` should refer to an array with at least as many bytes as as the result of [deswizzled_mip_size].
 ///
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
@@ -70,17 +70,17 @@ pub unsafe extern "C" fn deswizzle_block_linear(
     )
 }
 
-/// See [swizzled_surface_size](super::swizzled_surface_size).
+/// See [swizzled_mip_size](super::swizzled_mip_size).
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
-pub extern "C" fn swizzled_surface_size(
+pub extern "C" fn swizzled_mip_size(
     width: usize,
     height: usize,
     depth: usize,
     block_height: usize,
     bytes_per_pixel: usize,
 ) -> usize {
-    super::swizzled_surface_size(
+    super::swizzled_mip_size(
         width,
         height,
         depth,
@@ -89,15 +89,15 @@ pub extern "C" fn swizzled_surface_size(
     )
 }
 
-/// See [deswizzled_surface_size](super::deswizzled_surface_size).
+/// See [deswizzled_mip_size](super::deswizzled_mip_size).
 #[no_mangle]
-pub extern "C" fn deswizzled_surface_size(
+pub extern "C" fn deswizzled_mip_size(
     width: usize,
     height: usize,
     depth: usize,
     bytes_per_pixel: usize,
 ) -> usize {
-    super::deswizzled_surface_size(width, height, depth, bytes_per_pixel)
+    super::deswizzled_mip_size(width, height, depth, bytes_per_pixel)
 }
 
 /// See [block_height_mip0](super::block_height_mip0).

@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use tegra_swizzle::swizzle::swizzle_block_linear;
-use tegra_swizzle::swizzled_surface_size;
+use tegra_swizzle::swizzled_mip_size;
 use tegra_swizzle::BlockHeight;
 
 use criterion::BenchmarkId;
@@ -11,7 +11,7 @@ fn swizzle_block_linear_benchmark(c: &mut Criterion) {
     let bytes_per_pixel = 4;
     // We'll allocated the size needed by the largest run.
     // This avoids including the allocation time in the benchmark.
-    let source = vec![0u8; swizzled_surface_size(512, 512, 1, block_height, bytes_per_pixel)];
+    let source = vec![0u8; swizzled_mip_size(512, 512, 1, block_height, bytes_per_pixel)];
 
     let mut group = c.benchmark_group("swizzle_block_linear");
     for size in [0, 32, 64, 128, 256, 320, 340, 384, 448, 464, 500, 512] {

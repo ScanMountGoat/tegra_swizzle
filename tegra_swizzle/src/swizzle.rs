@@ -1,7 +1,7 @@
 //! Functions for swizzling and deswizzling specific regions of a surface.
 use crate::{
-    blockdepth::block_depth, deswizzled_surface_size, swizzled_surface_size, width_in_gobs,
-    BlockHeight, SwizzleError, GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
+    blockdepth::block_depth, deswizzled_mip_size, swizzled_mip_size, width_in_gobs, BlockHeight,
+    SwizzleError, GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
 };
 
 /// Swizzles the bytes from `source` using the block linear swizzling algorithm.
@@ -9,11 +9,11 @@ use crate::{
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
 ```rust
-use tegra_swizzle::{BlockHeight, deswizzled_surface_size, swizzle::swizzle_block_linear};
+use tegra_swizzle::{BlockHeight, deswizzled_mip_size, swizzle::swizzle_block_linear};
 
 let width = 512;
 let height = 512;
-# let size = deswizzled_surface_size(width, height, 1, 4);
+# let size = deswizzled_mip_size(width, height, 1, 4);
 # let input = vec![0u8; size];
 let output = swizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen, 4);
 ```
@@ -21,13 +21,13 @@ let output = swizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen
 /// For compressed formats with multiple pixels in a block, divide the width and height by the block dimensions.
 /**
 ```rust
-# use tegra_swizzle::{BlockHeight, deswizzled_surface_size, swizzle::swizzle_block_linear};
+# use tegra_swizzle::{BlockHeight, deswizzled_mip_size, swizzle::swizzle_block_linear};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
 use tegra_swizzle::div_round_up;
 
 let width = 512;
 let height = 512;
-# let size = deswizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, 16);
+# let size = deswizzled_mip_size(div_round_up(width, 4), div_round_up(height, 4), 1, 16);
 # let input = vec![0u8; size];
 let output = swizzle_block_linear(
     div_round_up(width, 4),
@@ -48,9 +48,9 @@ pub fn swizzle_block_linear(
     bytes_per_pixel: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
     let mut destination =
-        vec![0u8; swizzled_surface_size(width, height, depth, block_height, bytes_per_pixel)];
+        vec![0u8; swizzled_mip_size(width, height, depth, block_height, bytes_per_pixel)];
 
-    let expected_size = deswizzled_surface_size(width, height, depth, bytes_per_pixel);
+    let expected_size = deswizzled_mip_size(width, height, depth, bytes_per_pixel);
     if source.len() < expected_size {
         return Err(SwizzleError::NotEnoughData {
             actual_size: source.len(),
@@ -79,11 +79,11 @@ pub fn swizzle_block_linear(
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
 ```rust
-use tegra_swizzle::{BlockHeight, swizzled_surface_size, swizzle::deswizzle_block_linear};
+use tegra_swizzle::{BlockHeight, swizzled_mip_size, swizzle::deswizzle_block_linear};
 
 let width = 512;
 let height = 512;
-# let size = swizzled_surface_size(width, height, 1, BlockHeight::Sixteen, 4);
+# let size = swizzled_mip_size(width, height, 1, BlockHeight::Sixteen, 4);
 # let input = vec![0u8; size];
 let output = deswizzle_block_linear(width, height, 1, &input, BlockHeight::Sixteen, 4);
 ```
@@ -91,13 +91,13 @@ let output = deswizzle_block_linear(width, height, 1, &input, BlockHeight::Sixte
 /// For compressed formats with multiple pixels in a block, divide the width and height by the block dimensions.
 /**
 ```rust
-# use tegra_swizzle::{BlockHeight, swizzled_surface_size, swizzle::deswizzle_block_linear};
+# use tegra_swizzle::{BlockHeight, swizzled_mip_size, swizzle::deswizzle_block_linear};
 // BC7 has 4x4 pixel blocks that each take up 16 bytes.
 use tegra_swizzle::div_round_up;
 
 let width = 512;
 let height = 512;
-# let size = swizzled_surface_size(div_round_up(width, 4), div_round_up(height, 4), 1, BlockHeight::Sixteen, 16);
+# let size = swizzled_mip_size(div_round_up(width, 4), div_round_up(height, 4), 1, BlockHeight::Sixteen, 16);
 # let input = vec![0u8; size];
 let output = deswizzle_block_linear(
     div_round_up(width, 4),
@@ -117,9 +117,9 @@ pub fn deswizzle_block_linear(
     block_height: BlockHeight,
     bytes_per_pixel: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
-    let mut destination = vec![0u8; deswizzled_surface_size(width, height, depth, bytes_per_pixel)];
+    let mut destination = vec![0u8; deswizzled_mip_size(width, height, depth, bytes_per_pixel)];
 
-    let expected_size = swizzled_surface_size(width, height, depth, block_height, bytes_per_pixel);
+    let expected_size = swizzled_mip_size(width, height, depth, block_height, bytes_per_pixel);
     if source.len() < expected_size {
         return Err(SwizzleError::NotEnoughData {
             actual_size: source.len(),
@@ -363,7 +363,7 @@ mod tests {
         // The swizzling algorithm should still handle these cases.
         let bytes_per_pixel = 12;
 
-        let deswizzled_size = deswizzled_surface_size(width, height, 1, bytes_per_pixel);
+        let deswizzled_size = deswizzled_mip_size(width, height, 1, bytes_per_pixel);
 
         // Generate mostly unique input data.
         let seed = [13u8; 32];

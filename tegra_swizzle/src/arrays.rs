@@ -48,7 +48,7 @@ pub fn align_layer_size(
 mod tests {
     use std::cmp::max;
 
-    use crate::{block_height_mip0, div_round_up, mip_block_height, swizzled_surface_size};
+    use crate::{block_height_mip0, div_round_up, mip_block_height, swizzled_mip_size};
 
     use super::*;
 
@@ -72,7 +72,7 @@ mod tests {
             // The block height will likely change for each mip level.
             let mip_block_height = mip_block_height(mip_height, block_height_mip0);
 
-            layer_size += swizzled_surface_size(mip_width, mip_height, 1, mip_block_height, bpp);
+            layer_size += swizzled_mip_size(mip_width, mip_height, 1, mip_block_height, bpp);
         }
 
         // Assume 6 array layers.
