@@ -46,11 +46,9 @@ pub fn align_layer_size(
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::max;
-
-    use crate::{block_height_mip0, div_round_up, mip_block_height, swizzled_mip_size};
-
     use super::*;
+    use crate::{block_height_mip0, div_round_up, mip_block_height, swizzle::swizzled_mip_size};
+    use std::cmp::max;
 
     // TODO: Avoid duplicating this code?
     fn aligned_size(

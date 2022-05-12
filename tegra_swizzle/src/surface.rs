@@ -32,8 +32,11 @@ Layer L Mip M
 use std::{cmp::max, num::NonZeroUsize};
 
 use crate::{
-    arrays::align_layer_size, blockdepth::block_depth, deswizzled_mip_size, div_round_up,
-    mip_block_height, swizzle::swizzle_inner, swizzled_mip_size, BlockHeight, SwizzleError,
+    arrays::align_layer_size,
+    blockdepth::block_depth,
+    div_round_up, mip_block_height,
+    swizzle::{deswizzled_mip_size, swizzle_inner, swizzled_mip_size},
+    BlockHeight, SwizzleError,
 };
 
 /// The dimensions of a compressed block. Compressed block sizes are usually 4x4.
@@ -139,11 +142,22 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
     // TODO: 3D support.
-    // TODO: We can assume the total size is at most 33% larger than the base level?
-    // Reserve enough size for the entire surface to reduce allocations.
-    let estimated_size = width * height * depth * array_count;
-    let mut result = Vec::with_capacity(estimated_size + estimated_size / 2);
+    let surface_size = if DESWIZZLE {
+        deswizzled_surface_size(width, height, depth, block_dim, array_count)
+    } else {
+        swizzled_surface_size(
+            width,
+            height,
+            depth,
+            block_dim,
+            block_height_mip0,
+            bytes_per_pixel,
+            mipmap_count,
+            array_count,
+        )
+    };
 
+    let mut result = Vec::with_capacity(surface_size);
     let block_width = block_dim.width.get();
     let block_height = block_dim.height.get();
     let block_depth = block_dim.depth.get();
@@ -155,16 +169,6 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
             .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)))
     } else {
         BlockHeight::One
-    };
-
-    let align_to_layer = |x: usize| {
-        align_layer_size(
-            x,
-            max(div_round_up(height, block_height), 1),
-            1,
-            block_height_mip0,
-            1,
-        )
     };
 
     let mut src_offset = 0;
@@ -187,21 +191,74 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
                 &mut src_offset,
             )?;
         }
-
-        // Alignment for array layers.
-        if array_count > 1 {
-            if DESWIZZLE {
-                // Align the swizzled source offset.
-                src_offset = align_to_layer(src_offset);
-            } else {
-                // Align the swizzled output data.
-                let new_length = align_to_layer(result.len());
-                result.resize(new_length, 0);
-            }
-        }
     }
 
     Ok(result)
+}
+
+// TODO: Add examples.
+/// Calculates the size in bytes for the swizzled data for the given surface.
+/// Compare with [deswizzled_surface_size].
+pub fn swizzled_surface_size(
+    width: usize,
+    height: usize,
+    depth: usize,
+    block_dim: BlockDim, // TODO: Use None to indicate uncompressed?
+    block_height_mip0: Option<BlockHeight>, // TODO: Make this optional in other functions as well?
+    bytes_per_pixel: usize,
+    mipmap_count: usize,
+    array_count: usize,
+) -> usize {
+    let block_width = block_dim.width.get();
+    let block_height = block_dim.height.get();
+    let block_depth = block_dim.depth.get();
+
+    // The block height can be inferred if not specified.
+    // TODO: Enforce a block height of 1 for depth textures elsewhere?
+    let block_height_mip0 = if depth == 1 {
+        block_height_mip0
+            .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)))
+    } else {
+        BlockHeight::One
+    };
+
+    let mut mip_size = 0;
+    for mip in 0..mipmap_count {
+        let mip_width = max(div_round_up(width >> mip, block_width), 1);
+        let mip_height = max(div_round_up(height >> mip, block_height), 1);
+        let mip_depth = max(div_round_up(depth >> mip, block_depth), 1);
+        let mip_block_height = mip_block_height(mip_height, block_height_mip0);
+
+        mip_size += swizzled_mip_size(
+            mip_width,
+            mip_height,
+            mip_depth,
+            mip_block_height,
+            bytes_per_pixel,
+        )
+    }
+
+    if array_count > 1 {
+        // We only need alignment between arrays.
+        let array_size = align_layer_size(mip_size, height, depth, block_height_mip0, 1);
+        array_size * array_count
+    } else {
+        mip_size
+    }
+}
+
+// TODO: Add examples.
+/// Calculates the size in bytes for the deswizzled data for the given surface.
+/// Compare with [swizzled_surface_size].
+pub fn deswizzled_surface_size(
+    width: usize,
+    height: usize,
+    depth: usize,
+    block_dim: BlockDim, // TODO: Use None to indicate uncompressed?
+    array_count: usize,
+) -> usize {
+    // TODO: Account for block dimensions.
+    width * height * depth * array_count
 }
 
 fn swizzle_mipmap<const DESWIZZLE: bool>(
@@ -284,7 +341,6 @@ mod tests {
             width,
             height,
             1,
-            source_length,
             is_compressed,
             bpp,
             layer_count,
@@ -317,17 +373,15 @@ mod tests {
         width: usize,
         height: usize,
         depth: usize,
-        source_length: usize,
         is_compressed: bool,
         bpp: usize,
         layer_count: usize,
         mipmap_count: usize,
     ) -> usize {
-        swizzle_surface(
+        swizzled_surface_size(
             width,
             height,
             depth,
-            &vec![0u8; source_length],
             if is_compressed {
                 BlockDim::block_4x4()
             } else {
@@ -338,8 +392,6 @@ mod tests {
             layer_count,
             mipmap_count,
         )
-        .unwrap()
-        .len()
     }
 
     fn deswizzle_length_3d(

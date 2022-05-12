@@ -1,6 +1,8 @@
 //! Documentation for the C API
 use crate::BlockHeight;
 
+// TODO: Add surface swizzling.
+
 /// Swizzles the bytes from `source` into `destination` using the block linear swizzling algorithm.
 /// See the safe alternative [swizzle_block_linear](super::swizzle_block_linear).
 /// # Safety
@@ -80,7 +82,7 @@ pub extern "C" fn swizzled_mip_size(
     block_height: usize,
     bytes_per_pixel: usize,
 ) -> usize {
-    super::swizzled_mip_size(
+    crate::swizzle::swizzled_mip_size(
         width,
         height,
         depth,
@@ -97,7 +99,7 @@ pub extern "C" fn deswizzled_mip_size(
     depth: usize,
     bytes_per_pixel: usize,
 ) -> usize {
-    super::deswizzled_mip_size(width, height, depth, bytes_per_pixel)
+    crate::swizzle::deswizzled_mip_size(width, height, depth, bytes_per_pixel)
 }
 
 /// See [block_height_mip0](super::block_height_mip0).

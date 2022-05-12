@@ -68,6 +68,7 @@ let surface = deswizzle_surface(
 //! For array counts other than 1 or 6 and 3D textures with depth values other than 16,
 //! swizzling may not work as intended.
 //! These limitations should hopefully be fixed in a future release.
+// TODO: Document size calculations and explain why it's useful.
 mod arrays;
 mod blockdepth;
 mod blockheight;
@@ -106,8 +107,8 @@ pub enum BlockHeight {
 #[derive(Debug)]
 pub enum SwizzleError {
     /// The source data does not contain enough bytes.
-    /// The input length should be at least [swizzled_mip_size] many bytes for deswizzling
-    /// and at least [deswizzled_mip_size] many bytes for swizzling.
+    /// The input length should be at least [swizzle::swizzled_mip_size] many bytes for deswizzling
+    /// and at least [swizzle::deswizzled_mip_size] many bytes for swizzling.
     NotEnoughData {
         expected_size: usize,
         actual_size: usize,
@@ -156,86 +157,8 @@ impl BlockHeight {
     }
 }
 
-/// Calculates the size in bytes for the swizzled data for the given dimensions for the block linear format.
-/// The result of [swizzled_mip_size] will always be at least as large as [deswizzled_mip_size]
-/// for the same surface parameters.
-/// # Examples
-/// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
-/**
-```rust
-use tegra_swizzle::{BlockHeight, swizzled_mip_size};
-
-let width = 256;
-let height = 256;
-assert_eq!(262144, swizzled_mip_size(width, height, 1, BlockHeight::Sixteen, 4));
-```
- */
-/// For compressed formats with multiple pixels in a block, divide the width and height by the block dimensions.
-/**
-```rust
-# use tegra_swizzle::{BlockHeight, swizzled_mip_size};
-// BC7 has 4x4 pixel blocks that each take up 16 bytes.
-use tegra_swizzle::div_round_up;
-
-let width = 256;
-let height = 256;
-assert_eq!(
-    131072,
-    swizzled_mip_size(div_round_up(width, 4), div_round_up(height, 4), 1, BlockHeight::Sixteen, 16)
-);
-```
- */
-pub const fn swizzled_mip_size(
-    width: usize,
-    height: usize,
-    depth: usize,
-    block_height: BlockHeight,
-    bytes_per_pixel: usize,
-) -> usize {
-    let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
-    let height_in_blocks = height_in_blocks(height, block_height as usize);
-    width_in_gobs * height_in_blocks * block_height as usize * GOB_SIZE_IN_BYTES * depth
-}
-
 const fn height_in_blocks(height: usize, block_height: usize) -> usize {
     div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES)
-}
-
-/// Calculates the size in bytes for the deswizzled data for the given dimensions.
-/// Compare with [swizzled_mip_size].
-/// # Examples
-/// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
-/**
-```rust
-use tegra_swizzle::{BlockHeight, deswizzled_mip_size};
-
-let width = 256;
-let height = 256;
-assert_eq!(262144, deswizzled_mip_size(width, height, 1, 4));
-```
- */
-/// For compressed formats with multiple pixels in a block, divide the width and height by the block dimensions.
-/**
-```rust
-# use tegra_swizzle::{BlockHeight, deswizzled_mip_size};
-// BC7 has 4x4 pixel blocks that each take up 16 bytes.
-use tegra_swizzle::div_round_up;
-
-let width = 256;
-let height = 256;
-assert_eq!(
-    65536,
-    deswizzled_mip_size(div_round_up(width, 4), div_round_up(height, 4), 1, 16)
-);
-```
- */
-pub const fn deswizzled_mip_size(
-    width: usize,
-    height: usize,
-    depth: usize,
-    bytes_per_pixel: usize,
-) -> usize {
-    width * height * depth * bytes_per_pixel
 }
 
 /// Calculates the division of `x` by `d` but rounds up rather than truncating.
@@ -274,6 +197,7 @@ const fn width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::swizzle::{deswizzled_mip_size, swizzled_mip_size};
 
     #[test]
     fn width_in_gobs_block16() {
