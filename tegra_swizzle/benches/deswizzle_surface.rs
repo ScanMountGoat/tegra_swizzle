@@ -2,7 +2,7 @@ use criterion::black_box;
 use criterion::{criterion_group, criterion_main, Criterion};
 use tegra_swizzle::surface::deswizzle_surface;
 use tegra_swizzle::surface::BlockDim;
-use tegra_swizzle::swizzled_mip_size;
+use tegra_swizzle::swizzle::swizzled_mip_size;
 use tegra_swizzle::BlockHeight;
 
 use criterion::BenchmarkId;

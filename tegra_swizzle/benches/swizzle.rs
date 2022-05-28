@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use tegra_swizzle::swizzle::swizzle_block_linear;
-use tegra_swizzle::swizzled_mip_size;
+use tegra_swizzle::swizzle::swizzled_mip_size;
 use tegra_swizzle::BlockHeight;
 
 use criterion::BenchmarkId;
