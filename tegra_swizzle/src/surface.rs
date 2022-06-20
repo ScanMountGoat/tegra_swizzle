@@ -143,7 +143,7 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
 ) -> Result<Vec<u8>, SwizzleError> {
     // TODO: 3D support.
     let surface_size = if DESWIZZLE {
-        deswizzled_surface_size(width, height, depth, block_dim, array_count)
+        deswizzled_surface_size(width, height, depth, array_count)
     } else {
         swizzled_surface_size(
             width,
@@ -254,7 +254,6 @@ pub fn deswizzled_surface_size(
     width: usize,
     height: usize,
     depth: usize,
-    block_dim: BlockDim, // TODO: Use None to indicate uncompressed?
     array_count: usize,
 ) -> usize {
     // TODO: Account for block dimensions.
@@ -285,6 +284,7 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
     result.resize(result.len() + added_size, 0);
 
     // Make sure the source has enough space.
+    // TODO: Test this.
     if DESWIZZLE && source.len() < *src_offset + swizzled_size {
         return Err(SwizzleError::NotEnoughData {
             expected_size: 0,
@@ -334,17 +334,18 @@ mod tests {
         source_length: usize,
         is_compressed: bool,
         bpp: usize,
-        layer_count: usize,
         mipmap_count: usize,
+        layer_count: usize,
     ) -> usize {
         swizzle_length_3d(
             width,
             height,
             1,
+            source_length,
             is_compressed,
             bpp,
-            layer_count,
             mipmap_count,
+            layer_count,
         )
     }
 
@@ -354,8 +355,8 @@ mod tests {
         source_length: usize,
         is_compressed: bool,
         bpp: usize,
-        layer_count: usize,
         mipmap_count: usize,
+        layer_count: usize,
     ) -> usize {
         deswizzle_length_3d(
             width,
@@ -364,8 +365,8 @@ mod tests {
             source_length,
             is_compressed,
             bpp,
-            layer_count,
             mipmap_count,
+            layer_count,
         )
     }
 
@@ -373,15 +374,17 @@ mod tests {
         width: usize,
         height: usize,
         depth: usize,
+        source_length: usize,
         is_compressed: bool,
         bpp: usize,
-        layer_count: usize,
         mipmap_count: usize,
+        layer_count: usize,
     ) -> usize {
-        swizzled_surface_size(
+        swizzle_surface(
             width,
             height,
             depth,
+            &vec![0u8; source_length],
             if is_compressed {
                 BlockDim::block_4x4()
             } else {
@@ -389,9 +392,11 @@ mod tests {
             },
             None,
             bpp,
-            layer_count,
             mipmap_count,
+            layer_count,
         )
+        .unwrap()
+        .len()
     }
 
     fn deswizzle_length_3d(
@@ -401,8 +406,8 @@ mod tests {
         source_length: usize,
         is_compressed: bool,
         bpp: usize,
-        layer_count: usize,
         mipmap_count: usize,
+        layer_count: usize,
     ) -> usize {
         deswizzle_surface(
             width,
@@ -416,8 +421,8 @@ mod tests {
             },
             None,
             bpp,
-            layer_count,
             mipmap_count,
+            layer_count,
         )
         .unwrap()
         .len()
@@ -441,6 +446,9 @@ mod tests {
 
     #[test]
     fn swizzle_surface_arrays_mipmaps_length() {
+        // TODO: Investigate if these numbers are correct.
+        // TODO: Add a CSV of nutexb sizes.
+        // TODO: Clean up the existing documentation/data dumps.
         assert_eq!(147456, swizzle_length(128, 128, 131232, true, 16, 8, 6));
         assert_eq!(15360, swizzle_length(16, 16, 2208, true, 16, 5, 6));
         assert_eq!(540672, swizzle_length(256, 256, 524448, true, 16, 9, 6));
