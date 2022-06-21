@@ -311,17 +311,16 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
     let deswizzled_size = deswizzled_mip_size(with, height, depth, bytes_per_pixel);
 
     // Make sure the source has enough space.
-    // TODO: Test this.
     if DESWIZZLE && source.len() < *src_offset + swizzled_size {
         return Err(SwizzleError::NotEnoughData {
-            expected_size: 0,
+            expected_size: swizzled_size,
             actual_size: source.len(),
         });
     }
 
     if !DESWIZZLE && source.len() < *src_offset + deswizzled_size {
         return Err(SwizzleError::NotEnoughData {
-            expected_size: 0,
+            expected_size: deswizzled_size,
             actual_size: source.len(),
         });
     }
@@ -575,6 +574,32 @@ mod tests {
             deswizzle_length(512, 512, 2113536, true, 16, 10, 6)
         );
         assert_eq!(32928, deswizzle_length(64, 64, 49152, true, 16, 7, 6));
+    }
+
+    #[test]
+    fn swizzle_surface_not_enough_data() {
+        let input = [0, 0, 0, 0];
+        let result = swizzle_surface(16, 16, 16, &input, BlockDim::uncompressed(), None, 4, 1, 1);
+        assert!(matches!(
+            result,
+            Err(SwizzleError::NotEnoughData {
+                expected_size: 16384,
+                actual_size: 4
+            })
+        ));
+    }
+
+    #[test]
+    fn deswizzle_surface_not_enough_data() {
+        let input = [0, 0, 0, 0];
+        let result = deswizzle_surface(4, 4, 1, &input, BlockDim::uncompressed(), None, 4, 1, 1);
+        assert!(matches!(
+            result,
+            Err(SwizzleError::NotEnoughData {
+                expected_size: 512,
+                actual_size: 4
+            })
+        ));
     }
 
     #[test]
