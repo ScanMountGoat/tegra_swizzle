@@ -141,9 +141,16 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     mipmap_count: usize,
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
-    // TODO: 3D support.
     let surface_size = if DESWIZZLE {
-        deswizzled_surface_size(width, height, depth, array_count)
+        deswizzled_surface_size(
+            width,
+            height,
+            depth,
+            block_dim,
+            bytes_per_pixel,
+            mipmap_count,
+            array_count,
+        )
     } else {
         swizzled_surface_size(
             width,
@@ -157,7 +164,10 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
         )
     };
 
-    let mut result = Vec::with_capacity(surface_size);
+    // Assume the calculated size is accurate, so don't reallocate later.
+    let mut result = Vec::new();
+    result.resize(surface_size, 0u8);
+
     let block_width = block_dim.width.get();
     let block_height = block_dim.height.get();
     let block_depth = block_dim.depth.get();
@@ -172,6 +182,7 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     };
 
     let mut src_offset = 0;
+    let mut dst_offset = 0;
     for _ in 0..array_count {
         for mip in 0..mipmap_count {
             let mip_width = max(div_round_up(width >> mip, block_width), 1);
@@ -187,9 +198,19 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
                 mip_block_height,
                 bytes_per_pixel,
                 source,
-                &mut result,
                 &mut src_offset,
+                &mut result,
+                &mut dst_offset,
             )?;
+        }
+
+        // Align offsets between array layers.
+        if array_count > 1 {
+            if DESWIZZLE {
+                src_offset = align_layer_size(src_offset, height, depth, block_height_mip0, 1);
+            } else {
+                dst_offset = align_layer_size(dst_offset, height, depth, block_height_mip0, 1);
+            }
         }
     }
 
@@ -254,10 +275,25 @@ pub fn deswizzled_surface_size(
     width: usize,
     height: usize,
     depth: usize,
+    block_dim: BlockDim, // TODO: Use None to indicate uncompressed?
+    bytes_per_pixel: usize,
+    mipmap_count: usize,
     array_count: usize,
 ) -> usize {
-    // TODO: Account for block dimensions.
-    width * height * depth * array_count
+    // TODO: Avoid duplicating this code.
+    let block_width = block_dim.width.get();
+    let block_height = block_dim.height.get();
+    let block_depth = block_dim.depth.get();
+
+    let mut layer_size = 0;
+    for mip in 0..mipmap_count {
+        let mip_width = max(div_round_up(width >> mip, block_width), 1);
+        let mip_height = max(div_round_up(height >> mip, block_height), 1);
+        let mip_depth = max(div_round_up(depth >> mip, block_depth), 1);
+        layer_size += deswizzled_mip_size(mip_width, mip_height, mip_depth, bytes_per_pixel)
+    }
+
+    layer_size * array_count
 }
 
 fn swizzle_mipmap<const DESWIZZLE: bool>(
@@ -267,21 +303,12 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
     block_height: BlockHeight,
     bytes_per_pixel: usize,
     source: &[u8],
-    result: &mut Vec<u8>,
     src_offset: &mut usize,
+    dst: &mut [u8],
+    dst_offset: &mut usize,
 ) -> Result<(), SwizzleError> {
     let swizzled_size = swizzled_mip_size(with, height, depth, block_height, bytes_per_pixel);
     let deswizzled_size = deswizzled_mip_size(with, height, depth, bytes_per_pixel);
-
-    // Calculate the section of the buffer to swizzle.
-    let dst_offset = result.len();
-
-    let added_size = if DESWIZZLE {
-        deswizzled_size
-    } else {
-        swizzled_size
-    };
-    result.resize(result.len() + added_size, 0);
 
     // Make sure the source has enough space.
     // TODO: Test this.
@@ -308,16 +335,18 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
         height,
         depth,
         &source[*src_offset..],
-        &mut result[dst_offset..],
+        &mut dst[*dst_offset..],
         block_height as usize,
         block_depth,
         bytes_per_pixel,
     );
 
-    *src_offset += if DESWIZZLE {
-        swizzled_size
+    if DESWIZZLE {
+        *src_offset += swizzled_size;
+        *dst_offset += deswizzled_size;
     } else {
-        deswizzled_size
+        *src_offset += deswizzled_size;
+        *dst_offset += swizzled_size;
     };
 
     Ok(())
@@ -430,6 +459,9 @@ mod tests {
 
     // Expected swizzled sizes are taken from the nutexb footer.
     // Expected deswizzled sizes are the product of the mipmap size sum and the array count.
+    // TODO: Calculate more accurate deswizzled sizes?
+    // TODO: Add a CSV of nutexb sizes.
+    // TODO: Clean up the existing documentation/data dumps.
     #[test]
     fn swizzle_surface_arrays_no_mipmaps_length() {
         assert_eq!(6144, swizzle_length(16, 16, 6144, false, 4, 1, 6));
@@ -446,9 +478,6 @@ mod tests {
 
     #[test]
     fn swizzle_surface_arrays_mipmaps_length() {
-        // TODO: Investigate if these numbers are correct.
-        // TODO: Add a CSV of nutexb sizes.
-        // TODO: Clean up the existing documentation/data dumps.
         assert_eq!(147456, swizzle_length(128, 128, 131232, true, 16, 8, 6));
         assert_eq!(15360, swizzle_length(16, 16, 2208, true, 16, 5, 6));
         assert_eq!(540672, swizzle_length(256, 256, 524448, true, 16, 9, 6));
