@@ -40,6 +40,7 @@ use crate::{
 };
 
 /// The dimensions of a compressed block. Compressed block sizes are usually 4x4.
+#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockDim {
     /// The width of the block in pixels.
@@ -88,17 +89,32 @@ pub fn swizzle_surface(
     mipmap_count: usize,
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
-    swizzle_surface_inner::<false>(
+    let mut result = surface_destination::<false>(
         width,
         height,
         depth,
-        source,
         block_dim,
         block_height_mip0,
         bytes_per_pixel,
         mipmap_count,
         array_count,
-    )
+        source,
+    )?;
+
+    swizzle_surface_inner::<false>(
+        width,
+        height,
+        depth,
+        source,
+        &mut result,
+        block_dim,
+        block_height_mip0,
+        bytes_per_pixel,
+        mipmap_count,
+        array_count,
+    )?;
+
+    Ok(result)
 }
 
 // TODO: Find a way to simplify the parameters.
@@ -117,29 +133,106 @@ pub fn deswizzle_surface(
     mipmap_count: usize,
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
-    swizzle_surface_inner::<true>(
+    let mut result = surface_destination::<true>(
         width,
         height,
         depth,
-        source,
         block_dim,
         block_height_mip0,
         bytes_per_pixel,
         mipmap_count,
         array_count,
-    )
+        source,
+    )?;
+
+    swizzle_surface_inner::<true>(
+        width,
+        height,
+        depth,
+        source,
+        &mut result,
+        block_dim,
+        block_height_mip0,
+        bytes_per_pixel,
+        mipmap_count,
+        array_count,
+    )?;
+
+    Ok(result)
 }
 
-fn swizzle_surface_inner<const DESWIZZLE: bool>(
+pub(crate) fn swizzle_surface_inner<const DESWIZZLE: bool>(
     width: usize,
     height: usize,
     depth: usize,
     source: &[u8],
+    result: &mut [u8],
     block_dim: BlockDim,
     block_height_mip0: Option<BlockHeight>, // TODO: Make this optional in other functions as well?
     bytes_per_pixel: usize,
     mipmap_count: usize,
     array_count: usize,
+) -> Result<(), SwizzleError> {
+    let block_width = block_dim.width.get();
+    let block_height = block_dim.height.get();
+    let block_depth = block_dim.depth.get();
+
+    // The block height can be inferred if not specified.
+    // TODO: Enforce a block height of 1 for depth textures elsewhere?
+    let block_height_mip0 = if depth == 1 {
+        block_height_mip0
+            .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)))
+    } else {
+        BlockHeight::One
+    };
+
+    let mut src_offset = 0;
+    let mut dst_offset = 0;
+    for _ in 0..array_count {
+        for mip in 0..mipmap_count {
+            let mip_width = max(div_round_up(width >> mip, block_width), 1);
+            let mip_height = max(div_round_up(height >> mip, block_height), 1);
+            // TODO: mip gob depth?
+            let mip_depth = max(div_round_up(depth >> mip, block_depth), 1);
+
+            let mip_block_height = mip_block_height(mip_height, block_height_mip0);
+
+            swizzle_mipmap::<DESWIZZLE>(
+                mip_width,
+                mip_height,
+                mip_depth,
+                mip_block_height,
+                bytes_per_pixel,
+                source,
+                &mut src_offset,
+                result,
+                &mut dst_offset,
+            )?;
+        }
+
+        // Align offsets between array layers.
+        if array_count > 1 {
+            if DESWIZZLE {
+                src_offset = align_layer_size(src_offset, height, depth, block_height_mip0, 1);
+            } else {
+                dst_offset = align_layer_size(dst_offset, height, depth, block_height_mip0, 1);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn surface_destination<const DESWIZZLE: bool>(
+    width: usize,
+    height: usize,
+    depth: usize,
+    block_dim: BlockDim,
+    block_height_mip0: Option<BlockHeight>,
+    bytes_per_pixel: usize,
+    mipmap_count: usize,
+    array_count: usize,
+    source: &[u8],
 ) -> Result<Vec<u8>, SwizzleError> {
     let swizzled_size = swizzled_surface_size(
         width,
@@ -178,54 +271,6 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     // Assume the calculated size is accurate, so don't reallocate later.
     let mut result = Vec::new();
     result.resize(surface_size, 0u8);
-
-    let block_width = block_dim.width.get();
-    let block_height = block_dim.height.get();
-    let block_depth = block_dim.depth.get();
-
-    // The block height can be inferred if not specified.
-    // TODO: Enforce a block height of 1 for depth textures elsewhere?
-    let block_height_mip0 = if depth == 1 {
-        block_height_mip0
-            .unwrap_or_else(|| crate::block_height_mip0(div_round_up(height, block_height)))
-    } else {
-        BlockHeight::One
-    };
-
-    let mut src_offset = 0;
-    let mut dst_offset = 0;
-    for _ in 0..array_count {
-        for mip in 0..mipmap_count {
-            let mip_width = max(div_round_up(width >> mip, block_width), 1);
-            let mip_height = max(div_round_up(height >> mip, block_height), 1);
-            // TODO: mip gob depth?
-            let mip_depth = max(div_round_up(depth >> mip, block_depth), 1);
-
-            let mip_block_height = mip_block_height(mip_height, block_height_mip0);
-
-            swizzle_mipmap::<DESWIZZLE>(
-                mip_width,
-                mip_height,
-                mip_depth,
-                mip_block_height,
-                bytes_per_pixel,
-                source,
-                &mut src_offset,
-                &mut result,
-                &mut dst_offset,
-            )?;
-        }
-
-        // Align offsets between array layers.
-        if array_count > 1 {
-            if DESWIZZLE {
-                src_offset = align_layer_size(src_offset, height, depth, block_height_mip0, 1);
-            } else {
-                dst_offset = align_layer_size(dst_offset, height, depth, block_height_mip0, 1);
-            }
-        }
-    }
-
     Ok(result)
 }
 
@@ -347,7 +392,7 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
         depth,
         &source[*src_offset..],
         &mut dst[*dst_offset..],
-        block_height as usize,
+        block_height,
         block_depth,
         bytes_per_pixel,
     );
@@ -635,6 +680,32 @@ mod tests {
             result,
             Err(SwizzleError::NotEnoughData {
                 expected_size: 1125848368021500,
+                actual_size: 4
+            })
+        ));
+    }
+
+    #[test]
+    fn deswizzle_surface_potential_out_of_memory() {
+        // Test a large 3D texture that likely won't fit in memory.
+        // The input is clearly too small, so this should error instead of panic.
+        let input = [0, 0, 0, 0];
+        let dim = u16::MAX as usize;
+        let result = deswizzle_surface(
+            dim,
+            dim,
+            dim,
+            &input,
+            BlockDim::uncompressed(),
+            None,
+            4,
+            1,
+            1,
+        );
+        assert!(matches!(
+            result,
+            Err(SwizzleError::NotEnoughData {
+                expected_size: 1125882726973440,
                 actual_size: 4
             })
         ));

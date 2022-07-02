@@ -64,7 +64,6 @@ let surface = deswizzle_surface(
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.
 //!
 //! # Limitations
-//! 2D surfaces as well as cube maps and texture arrays are fully supported.
 //! For array counts other than 1 or 6 and 3D textures with depth values other than 16,
 //! swizzling may not work as intended.
 //! These limitations should hopefully be fixed in a future release.
@@ -76,8 +75,8 @@ mod blockheight;
 pub mod surface;
 pub mod swizzle;
 
-// Avoid making this module public to prevent people importing it accidentally.
-mod ffi;
+// TODO: Put this behind a feature flag.
+pub mod ffi;
 
 pub use blockheight::*;
 

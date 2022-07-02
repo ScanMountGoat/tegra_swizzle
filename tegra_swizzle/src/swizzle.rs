@@ -67,7 +67,7 @@ pub fn swizzle_block_linear(
         depth,
         source,
         &mut destination,
-        block_height as usize,
+        block_height,
         block_depth,
         bytes_per_pixel,
     );
@@ -136,7 +136,7 @@ pub fn deswizzle_block_linear(
         depth,
         source,
         &mut destination,
-        block_height as usize,
+        block_height,
         block_depth,
         bytes_per_pixel,
     );
@@ -149,10 +149,11 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
     depth: usize,
     source: &[u8],
     destination: &mut [u8],
-    block_height: usize,
+    block_height: BlockHeight,
     block_depth: usize,
     bytes_per_pixel: usize,
 ) {
+    let block_height = block_height as usize;
     let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
 
     // TODO: Is this correct?
