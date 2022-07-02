@@ -141,28 +141,39 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
     mipmap_count: usize,
     array_count: usize,
 ) -> Result<Vec<u8>, SwizzleError> {
-    let surface_size = if DESWIZZLE {
-        deswizzled_surface_size(
-            width,
-            height,
-            depth,
-            block_dim,
-            bytes_per_pixel,
-            mipmap_count,
-            array_count,
-        )
+    let swizzled_size = swizzled_surface_size(
+        width,
+        height,
+        depth,
+        block_dim,
+        block_height_mip0,
+        bytes_per_pixel,
+        mipmap_count,
+        array_count,
+    );
+    let deswizzled_size = deswizzled_surface_size(
+        width,
+        height,
+        depth,
+        block_dim,
+        bytes_per_pixel,
+        mipmap_count,
+        array_count,
+    );
+    let (surface_size, expected_size) = if DESWIZZLE {
+        (deswizzled_size, swizzled_size)
     } else {
-        swizzled_surface_size(
-            width,
-            height,
-            depth,
-            block_dim,
-            block_height_mip0,
-            bytes_per_pixel,
-            mipmap_count,
-            array_count,
-        )
+        (swizzled_size, deswizzled_size)
     };
+
+    // Validate the source length before attempting to allocate.
+    // This reduces potential out of memory panics.
+    if source.len() < expected_size {
+        return Err(SwizzleError::NotEnoughData {
+            actual_size: source.len(),
+            expected_size,
+        });
+    }
 
     // Assume the calculated size is accurate, so don't reallocate later.
     let mut result = Vec::new();
@@ -187,6 +198,7 @@ fn swizzle_surface_inner<const DESWIZZLE: bool>(
         for mip in 0..mipmap_count {
             let mip_width = max(div_round_up(width >> mip, block_width), 1);
             let mip_height = max(div_round_up(height >> mip, block_height), 1);
+            // TODO: mip gob depth?
             let mip_depth = max(div_round_up(depth >> mip, block_depth), 1);
 
             let mip_block_height = mip_block_height(mip_height, block_height_mip0);
@@ -597,6 +609,32 @@ mod tests {
             result,
             Err(SwizzleError::NotEnoughData {
                 expected_size: 512,
+                actual_size: 4
+            })
+        ));
+    }
+
+    #[test]
+    fn swizzle_surface_potential_out_of_memory() {
+        // Test a large 3D texture that likely won't fit in memory.
+        // The input is clearly too small, so this should error instead of panic.
+        let input = [0, 0, 0, 0];
+        let dim = u16::MAX as usize;
+        let result = swizzle_surface(
+            dim,
+            dim,
+            dim,
+            &input,
+            BlockDim::uncompressed(),
+            None,
+            4,
+            1,
+            1,
+        );
+        assert!(matches!(
+            result,
+            Err(SwizzleError::NotEnoughData {
+                expected_size: 1125848368021500,
                 actual_size: 4
             })
         ));
