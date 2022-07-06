@@ -64,10 +64,9 @@ let surface = deswizzle_surface(
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.
 //!
 //! # Limitations
-//! For array counts other than 1 or 6 and 3D textures with depth values other than 16,
-//! swizzling may not work as intended.
+//! Array layer counts other than 1 or 6 and 3D textures with depth values other than 16 are not well tested,
+//! so swizzling may not work as intended.
 //! These limitations should hopefully be fixed in a future release.
-// TODO: Document size calculations and explain why it's useful.
 mod arrays;
 mod blockdepth;
 mod blockheight;
@@ -106,8 +105,8 @@ pub enum BlockHeight {
 #[derive(Debug)]
 pub enum SwizzleError {
     /// The source data does not contain enough bytes.
-    /// The input length should be at least [swizzle::swizzled_mip_size] many bytes for deswizzling
-    /// and at least [swizzle::deswizzled_mip_size] many bytes for swizzling.
+    /// See the documentation for functions like [surface::swizzle_surface] and [surface::deswizzle_surface]
+    /// for how to calculate the expected size.
     NotEnoughData {
         expected_size: usize,
         actual_size: usize,

@@ -1,10 +1,14 @@
-//! Functions for swizzling and deswizzling specific regions of a surface.
+//! Functions for swizzling and deswizzling a single mipmap of a surface.
 use crate::{
     blockdepth::block_depth, height_in_blocks, width_in_gobs, BlockHeight, SwizzleError,
     GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
 };
 
 /// Swizzles the bytes from `source` using the block linear swizzling algorithm.
+///
+/// Returns [SwizzleError::NotEnoughData] if `source` does not have
+/// at least as many bytes as the result of [deswizzled_mip_size].
+///
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
@@ -75,6 +79,10 @@ pub fn swizzle_block_linear(
 }
 
 /// Deswizzles the bytes from `source` using the block linear swizzling algorithm.
+///
+/// Returns [SwizzleError::NotEnoughData] if `source` does not have
+/// at least as many bytes as the result of [swizzled_mip_size].
+///
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
