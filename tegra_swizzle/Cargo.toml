@@ -1,6 +1,6 @@
 [package]
 name = "tegra_swizzle"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["ScanMountGoat <>"]
 description = "Unofficial CPU implementation for Tegra X1 swizzling"
 license = "MIT"
