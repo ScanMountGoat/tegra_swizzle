@@ -74,7 +74,7 @@ mod blockheight;
 pub mod surface;
 pub mod swizzle;
 
-// TODO: Put this behind a feature flag.
+#[cfg(feature = "ffi")]
 pub mod ffi;
 
 pub use blockheight::*;

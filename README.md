@@ -10,9 +10,9 @@ The above image shows a swizzled RGBA 3D lut. The different colored blocks corre
 A safe and efficient pure Rust implementation of swizzling and deswizzling for the block linear format. 
 
 ### C FFI 
-For using the library in other languages through C FFI, first build the library with `cargo build --release`. This requires the Rust toolchain to be installed.  
+For using the library in other languages through C FFI, first build the library with `cargo build --release --features=ffi`. This requires the Rust toolchain to be installed.  
 
-The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. For documentation, see the [ffi](https://github.com/ScanMountGoat/nutexb_swizzle/blob/main/tegra_swizzle/src/ffi.rs) module.
+The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. See the ffi module in the docs.rs link for documentation.
 
 ## Test Data
 This repository contains [sample data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for testing swizzling and deswizzling. These files were generated using the swizzling implementation for the Yuzu emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   

@@ -18,6 +18,12 @@ arbitrary = { version = "1", features = ["derive"], optional = true }
 rand = "0.8.4"
 criterion = "0.3"
 
+[features]
+ffi = []
+
+[package.metadata.docs.rs]
+all-features = true
+
 [[bench]]
 name = "blockheight"
 harness = false
