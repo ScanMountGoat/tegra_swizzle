@@ -20,7 +20,7 @@ pub fn block_depth(depth: usize) -> usize {
 
 // TODO: Can these be calculated automatically?
 // These aren't listed as directly user configurable in the TRM?
-pub fn mip_block_depth(base_depth: usize, gob_depth: usize, level: usize) -> usize {
+pub fn _mip_block_depth(base_depth: usize, gob_depth: usize, level: usize) -> usize {
     // TODO: Factor out the mip level to be consistent with blockheight.rs?
     let level_depth = std::cmp::max(1, base_depth >> level);
 

@@ -39,7 +39,7 @@ use crate::{
     BlockHeight, SwizzleError,
 };
 
-/// The dimensions of a compressed block. Compressed block sizes are usually 4x4.
+/// The dimensions of a compressed block. Compressed block sizes are usually 4x4 pixels.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockDim {
@@ -281,6 +281,10 @@ fn surface_destination<const DESWIZZLE: bool>(
 // TODO: Add examples.
 /// Calculates the size in bytes for the swizzled data for the given surface.
 /// Compare with [deswizzled_surface_size].
+///
+/// Dimensions should be in pixels.
+///
+/// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
 pub fn swizzled_surface_size(
     width: usize,
     height: usize,
@@ -332,11 +336,13 @@ pub fn swizzled_surface_size(
 // TODO: Add examples.
 /// Calculates the size in bytes for the deswizzled data for the given surface.
 /// Compare with [swizzled_surface_size].
+///
+/// Dimensions should be in pixels.
 pub fn deswizzled_surface_size(
     width: usize,
     height: usize,
     depth: usize,
-    block_dim: BlockDim, // TODO: Use None to indicate uncompressed?
+    block_dim: BlockDim,
     bytes_per_pixel: usize,
     mipmap_count: usize,
     layer_count: usize,
