@@ -1,8 +1,15 @@
 # Tegra X1 Swizzling
 <img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/swizzle3d.png" height="auto" width="100%">
 <img src="https://raw.githubusercontent.com/ScanMountGoat/nutexb_swizzle/main/deswizzled3d.png" height="auto" width="100%">
-Documentation and tools for Tegra X1 swizzling for the Nintendo Switch. Textures are commonly stored in a swizzled layout for nutexb and bntx texture files. 
-The above image shows a swizzled RGBA 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The deswizzled version is shown below.
+
+Documentation and tools for the Tegra X1 block linear swizzling algorithm used for the Nintendo Switch.
+
+The above image shows a swizzled RGBA 16x16x16 pixel 3D lut. The different colored blocks correspond to a 16x2 grid of GOBs ("groups of bytes" from the Tegra TRM). GOBs are 64x8 bytes (512 total bytes), which in this case is 16x8 pixels. The deswizzled version is shown below.
+
+## Swizzling
+Texture are often stored in a swizzled layout to make texture accesses more cache friendly. The standard linear or row-major memory ordering is only cache friendly when the data is accessed in row-major order. This is rarely the case for image textures for models, so the bytes of a surface are rearranged to improve the number of cache misses using a process known as "swizzling". 
+
+It's important to note that swizzling affects memory addressing, so surfaces should be thought of as 2D or 3D arrays of bytes rather than pixels or 4x4 pixel blocks. The swizzling algorithm is agnostic to whether the data is RGBA8 or BC7 compressed. The format is used only for converting the surface dimensions from pixels to bytes. This avoids making assumptions about relationships between the size of a pixel or compressed block and the swizzling algorithm and results in more efficient code. The byte dimensions of swizzled surfaces are rounded up to integral dimensions in GOBs (64x8) bytes. The surface dimensions in pixels do not need to be powers of two for swizzling to work correctly.
 
 ## tegra_swizzle 
 [![Latest Version](https://img.shields.io/crates/v/tegra_swizzle.svg)](https://crates.io/crates/tegra_swizzle) [![docs.rs](https://docs.rs/tegra_swizzle/badge.svg)](https://docs.rs/tegra_swizzle)
