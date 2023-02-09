@@ -20,11 +20,11 @@
 Layer 0 Mip 0
 Layer 0 Mip 1
 ...
-Layer 0 Mip M
+Layer 0 Mip M-1
 Layer 1 Mip 0
 Layer 1 Mip 1
 ...
-Layer L Mip M
+Layer L-1 Mip M-1
 ```
 */
 //! The convention is for the non swizzled layout to be tightly packed.
