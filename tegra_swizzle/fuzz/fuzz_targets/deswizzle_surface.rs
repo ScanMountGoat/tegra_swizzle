@@ -22,9 +22,9 @@ struct Input {
 impl<'a> Arbitrary<'a> for Input {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Input {
-            width: u.int_in_range(0..=4096)?,
-            height: u.int_in_range(0..=4096)?,
-            depth: 1,
+            width: u.int_in_range(0..=256)?,
+            height: u.int_in_range(0..=256)?,
+            depth: u.int_in_range(0..=256)?,
             block_width: NonZeroUsize::new(u.int_in_range(1..=16)?).unwrap(),
             block_height: NonZeroUsize::new(u.int_in_range(1..=16)?).unwrap(),
             block_height_mip0: u.arbitrary()?,
