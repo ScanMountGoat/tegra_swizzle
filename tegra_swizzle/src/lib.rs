@@ -85,7 +85,7 @@ const GOB_SIZE_IN_BYTES: usize = GOB_WIDTH_IN_BYTES * GOB_HEIGHT_IN_BYTES;
 
 // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
 
-/// An enumeration of supported block heights.
+/// The height of each block in GOBs where each GOB is 8 bytes tall.
 ///
 /// Texture file formats differ in how they encode the block height parameter.
 /// Some formats may encode block height using log2, so a block height of 8 would be encoded as 3.
@@ -156,6 +156,7 @@ impl BlockHeight {
 }
 
 const fn height_in_blocks(height: usize, block_height: usize) -> usize {
+    // Each block is block_height many GOBs tall.
     div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES)
 }
 
@@ -184,7 +185,7 @@ pub const fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
 }
 
-fn round_up(x: usize, n: usize) -> usize {
+const fn round_up(x: usize, n: usize) -> usize {
     ((x + n - 1) / n) * n
 }
 

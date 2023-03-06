@@ -1,6 +1,6 @@
 //! Functions for swizzling and deswizzling a single mipmap of a surface.
 use crate::{
-    blockdepth::block_depth, height_in_blocks, width_in_gobs, BlockHeight, SwizzleError,
+    blockdepth::block_depth, height_in_blocks, round_up, width_in_gobs, BlockHeight, SwizzleError,
     GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
 };
 
@@ -276,8 +276,11 @@ fn swizzle_deswizzle_gob<const DESWIZZLE: bool>(
 fn gob_address_z(z: usize, block_height: usize, block_depth: usize, slice_size: usize) -> usize {
     // Each "column" of blocks has block_depth many blocks.
     // A 16x16x16 RGBA8 3d texture has the following deswizzled GOB indices.
-    // 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24,
-    // 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31
+    //  0, 16,
+    //  1, 17,
+    // ...
+    // 14, 30
+    // 15, 31
     (z / block_depth * slice_size) + ((z & (block_depth - 1)) * GOB_SIZE_IN_BYTES * block_height)
 }
 
@@ -391,9 +394,16 @@ pub const fn swizzled_mip_size(
     block_height: BlockHeight,
     bytes_per_pixel: usize,
 ) -> usize {
+    // Assume each block is 1 GOB wide.
     let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
+
     let height_in_blocks = height_in_blocks(height, block_height as usize);
-    width_in_gobs * height_in_blocks * block_height as usize * GOB_SIZE_IN_BYTES * depth
+    let height_in_gobs = height_in_blocks * block_height as usize;
+
+    let depth_in_gobs = round_up(depth, block_depth(depth));
+
+    let num_gobs = width_in_gobs * height_in_gobs * depth_in_gobs;
+    num_gobs * GOB_SIZE_IN_BYTES
 }
 
 /// Calculates the size in bytes for the deswizzled data for the given dimensions.

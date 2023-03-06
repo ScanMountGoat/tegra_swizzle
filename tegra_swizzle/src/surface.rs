@@ -553,6 +553,18 @@ mod tests {
     }
 
     #[test]
+    fn swizzle_surface_3d_length() {
+        assert_eq!(
+            16384,
+            swizzle_length_3d(16, 16, 16, 16 * 16 * 16 * 4, false, 4, 1, 1)
+        );
+        assert_eq!(
+            368640,
+            swizzle_length_3d(33, 33, 33, 33 * 33 * 33 * 4, false, 4, 1, 1)
+        );
+    }
+
+    #[test]
     fn swizzle_surface_nutexb_length() {
         // Sizes and parameters taken from Smash Ultimate nutexb files.
         // The deswizzled size is estimated as the product of the mip sizes sum and array count.
@@ -712,10 +724,11 @@ mod tests {
             1,
             1,
         );
+
         assert!(matches!(
             result,
             Err(SwizzleError::NotEnoughData {
-                expected_size: 1125882726973440,
+                expected_size: 1125899906842624,
                 actual_size: 4
             })
         ));
