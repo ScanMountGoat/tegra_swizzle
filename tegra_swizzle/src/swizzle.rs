@@ -1,7 +1,7 @@
 //! Functions for swizzling and deswizzling a single mipmap of a surface.
 use crate::{
-    blockdepth::block_depth, height_in_blocks, round_up, width_in_gobs, BlockHeight, SwizzleError,
-    GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
+    blockdepth::block_depth, div_round_up, height_in_blocks, round_up, width_in_gobs, BlockHeight,
+    SwizzleError, GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
 };
 
 /// Swizzles the bytes from `source` using the block linear swizzling algorithm.
@@ -162,10 +162,9 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
     bytes_per_pixel: usize,
 ) {
     let block_height = block_height as usize;
-    let image_width_in_gobs = width_in_gobs(width, bytes_per_pixel);
+    let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
 
-    // TODO: Is this correct?
-    let slice_size = image_width_in_gobs * block_depth * GOB_SIZE_IN_BYTES;
+    let slice_size = slice_size(block_height, block_depth, width_in_gobs, height);
 
     // Blocks are always one GOB wide.
     // TODO: Citation?
@@ -174,8 +173,8 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
     let block_height_in_bytes = GOB_HEIGHT_IN_BYTES * block_height;
 
     // Swizzling is defined as a mapping from byte coordinates x,y,z -> x',y',z'.
-    // We step a GOB of bytes at a time to enable a tiled optimization approach.
-    // GOBs always use the same swizzle patterns, so we can optimize swizzling complete 64x8 byte tiles.
+    // We step a GOB of bytes at a time to optimize the inner loop with SIMD loads/stores.
+    // GOBs always use the same swizzle patterns, so we can optimize swizzling complete 64x8 GOBs.
     // The partially filled GOBs along the right and bottom edge use a slower per byte implementation.
     for z0 in 0..depth {
         let offset_z = gob_address_z(z0, block_height, block_depth, slice_size);
@@ -186,7 +185,7 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
                 y0,
                 block_height_in_bytes,
                 block_size_in_bytes,
-                image_width_in_gobs,
+                width_in_gobs,
             );
 
             // Step by a GOB of bytes in x.
@@ -270,9 +269,20 @@ fn swizzle_deswizzle_gob<const DESWIZZLE: bool>(
     }
 }
 
-// TODO: Add additional 3D tests?
-// Yuzu: https://github.com/yuzu-emu/yuzu/blob/c5ca8675c84ca73375cf3fe2ade257c8aa5c1239/src/video_core/textures/decoders.cpp#L46-L47
-// Ryujinx: https://github.com/Ryujinx/Ryujinx/blob/1485780d90a554a9a71585ff1dd6e049b32b761e/Ryujinx.Graphics.Texture/BlockLinearLayout.cs#L146-L154
+// The gob address and slice size functions are ported from Ryujinx Emulator.
+// https://github.com/Ryujinx/Ryujinx/blob/master/Ryujinx.Graphics.Texture/BlockLinearLayout.cs
+// License MIT: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
+fn slice_size(
+    block_height: usize,
+    block_depth: usize,
+    width_in_gobs: usize,
+    height: usize,
+) -> usize {
+    let rob_size = GOB_SIZE_IN_BYTES * block_height * block_depth * width_in_gobs;
+    let slice_size = div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES) * rob_size;
+    slice_size
+}
+
 fn gob_address_z(z: usize, block_height: usize, block_depth: usize, slice_size: usize) -> usize {
     // Each "column" of blocks has block_depth many blocks.
     // A 16x16x16 RGBA8 3d texture has the following deswizzled GOB indices.
@@ -310,6 +320,8 @@ fn gob_offset(x: usize, y: usize) -> usize {
 }
 
 // TODO: Investigate using macros to generate this code.
+// TODO: Is it faster to use 16 byte loads for each row on incomplete GOBs?
+// This may lead to better performance if the GOB is almost complete.
 
 // An optimized version of the gob_offset for an entire GOB worth of bytes.
 // The swizzled GOB is a contiguous region of 512 bytes.

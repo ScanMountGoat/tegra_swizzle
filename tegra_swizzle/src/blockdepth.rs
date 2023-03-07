@@ -1,6 +1,6 @@
-// Block depth code ported from C# implementations of driver code by gdkchan.
+// Block depth code ported from C# implementations of driver code by gdkchan in Ryujinx.
 // The code can be found here: https://github.com/KillzXGaming/Switch-Toolbox/pull/419#issuecomment-959980096
-// This comes from the Ryujinx emulator: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
+// License MIT: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
 pub const fn block_depth(depth: usize) -> usize {
     // TODO: Should this be an enum similar to BlockHeight?
     // This would only matter if it was part of the public API.
@@ -18,14 +18,9 @@ pub const fn block_depth(depth: usize) -> usize {
     }
 }
 
-// TODO: Can these be calculated automatically?
-// These aren't listed as directly user configurable in the TRM?
-pub fn _mip_block_depth(base_depth: usize, gob_depth: usize, level: usize) -> usize {
-    // TODO: Factor out the mip level to be consistent with blockheight.rs?
-    let level_depth = std::cmp::max(1, base_depth >> level);
-
+pub fn mip_block_depth(mip_depth: usize, gob_depth: usize) -> usize {
     let mut gob_depth = gob_depth;
-    while level_depth <= gob_depth / 2 && gob_depth > 1 {
+    while mip_depth <= gob_depth / 2 && gob_depth > 1 {
         gob_depth /= 2;
     }
 
@@ -39,7 +34,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn base_block_depth() {
+    fn base_block_depths() {
         assert_eq!(16, block_depth(16));
+        assert_eq!(16, block_depth(33));
+    }
+
+    #[test]
+    fn mip_block_depths() {
+        assert_eq!(8, mip_block_depth(16 / 2, 16));
+        assert_eq!(16, mip_block_depth(33 / 2, 16));
     }
 }

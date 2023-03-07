@@ -22,11 +22,10 @@ For using the library in other languages through C FFI, first build the library 
 The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. See the ffi module in the docs.rs link for documentation.
 
 ## Test Data
-This repository contains [sample data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for testing swizzling and deswizzling. These files were generated using the swizzling implementation for the Yuzu emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   
+This repository contains [sample data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for testing swizzling and deswizzling. These files were generated using the swizzling implementation for Ryujinx emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   
 
 ## Documentation
-See the [swizzle](swizzle.md) page for a more formal description of swizzling. While not rigorous enough to be considered a proof, this helps motivate some of the techniques and optimizations applied to this library. The following [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) also provides some additional insights into swizzling. 
-Note that the technique used in this implementation differs from those described in the post.  
+See the [swizzle](swizzle.md) page for a more formal description of swizzling. While not rigorous enough to be considered a proof, this helps motivate some of the techniques and optimizations applied to this library. The following [swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) also provides some additional insights into swizzling. Note that the technique used in this implementation differs from those described in the post.  
 
 ## nutexb_swizzle
 The program can automatically generate lookup tables for swizzling and deswizzling texture data based on a pair of swizzled and unswizzled image data files. For the power of two case, the lookup table can be efficiently expressed as bit patterns for the x, y, and z components of the pixel address. The bit pattern technique is based on the following [blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/).  

@@ -1,6 +1,6 @@
-// Block height code ported from C# implementations of driver code by gdkchan.
+// Block height code ported from C# implementations of driver code by gdkchan in Ryujinx.
 // The code can be found here: https://github.com/KillzXGaming/Switch-Toolbox/pull/419#issuecomment-959980096
-// This comes from the Ryujinx emulator: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
+// License MIT: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
 use crate::BlockHeight;
 
 /// Calculates the block height parameter to use for the first mip level if no block height is specified.

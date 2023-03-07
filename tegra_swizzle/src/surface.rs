@@ -33,7 +33,7 @@ use std::{cmp::max, num::NonZeroUsize};
 
 use crate::{
     arrays::align_layer_size,
-    blockdepth::block_depth,
+    blockdepth::mip_block_depth,
     div_round_up, mip_block_height,
     swizzle::{deswizzled_mip_size, swizzle_inner, swizzled_mip_size},
     BlockHeight, SwizzleError,
@@ -190,22 +190,26 @@ pub(crate) fn swizzle_surface_inner<const DESWIZZLE: bool>(
         BlockHeight::One
     };
 
+    // TODO: Don't assume block_depth is 1?
+    let block_depth_mip0 = crate::blockdepth::block_depth(depth);
+
     let mut src_offset = 0;
     let mut dst_offset = 0;
     for _ in 0..layer_count {
         for mip in 0..mipmap_count {
             let mip_width = max(div_round_up(width >> mip, block_width), 1);
             let mip_height = max(div_round_up(height >> mip, block_height), 1);
-            // TODO: mip gob depth?
             let mip_depth = max(div_round_up(depth >> mip, block_depth), 1);
 
             let mip_block_height = mip_block_height(mip_height, block_height_mip0);
+            let mip_block_depth = mip_block_depth(mip_depth, block_depth_mip0);
 
             swizzle_mipmap::<DESWIZZLE>(
                 mip_width,
                 mip_height,
                 mip_depth,
                 mip_block_height,
+                mip_block_depth,
                 bytes_per_pixel,
                 source,
                 &mut src_offset,
@@ -368,6 +372,7 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
     height: usize,
     depth: usize,
     block_height: BlockHeight,
+    block_depth: usize,
     bytes_per_pixel: usize,
     source: &[u8],
     src_offset: &mut usize,
@@ -391,9 +396,6 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
             actual_size: source.len(),
         });
     }
-
-    // TODO: This should be a parameter since it varies by mipmap?
-    let block_depth = block_depth(depth);
 
     // Swizzle the data and move to the next section.
     swizzle_inner::<DESWIZZLE>(
@@ -750,5 +752,23 @@ mod tests {
         let actual =
             deswizzle_surface(16, 16, 16, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
         assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn swizzle_surface_rgba_33_33_33() {
+        let input = include_bytes!("../../swizzle_data/33_33_33_rgba_deswizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/33_33_33_rgba_swizzled.bin");
+        let actual =
+            swizzle_surface(33, 33, 33, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
+        assert!(expected == &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_surface_rgba_33_33_33() {
+        let input = include_bytes!("../../swizzle_data/33_33_33_rgba_swizzled.bin");
+        let expected = include_bytes!("../../swizzle_data/33_33_33_rgba_deswizzled.bin");
+        let actual =
+            deswizzle_surface(33, 33, 33, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
+        assert!(expected == &actual[..]);
     }
 }

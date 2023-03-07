@@ -62,11 +62,6 @@ let surface = deswizzle_surface(
 //!
 //! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.
-//!
-//! # Limitations
-//! Array layer counts other than 1 or 6 and 3D textures with depth values other than 16 are not well tested,
-//! so swizzling may not work as intended.
-//! These limitations should hopefully be fixed in a future release.
 mod arrays;
 mod blockdepth;
 mod blockheight;
