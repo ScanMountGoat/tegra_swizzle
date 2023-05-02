@@ -6,6 +6,7 @@ description = "Unofficial CPU implementation for Tegra X1 swizzling"
 license = "MIT"
 documentation = "https://docs.rs/tegra_swizzle"
 repository = "https://github.com/ScanMountGoat/tegra_swizzle"
+readme = "../README.md"
 edition = "2018"
 
 [lib]
