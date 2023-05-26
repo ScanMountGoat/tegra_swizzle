@@ -48,7 +48,7 @@ pub fn write_nutexb_from_data<W: Write>(
     NutexbFile {
         data: data.into(),
         footer: NutexbFooter {
-            mip_sizes: vec![size as u32],
+            mip_sizes: vec![size],
             string_magic: *b" XNT",
             string: name.into(),
             width,

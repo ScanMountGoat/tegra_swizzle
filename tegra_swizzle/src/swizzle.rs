@@ -279,8 +279,7 @@ fn slice_size(
     height: usize,
 ) -> usize {
     let rob_size = GOB_SIZE_IN_BYTES * block_height * block_depth * width_in_gobs;
-    let slice_size = div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES) * rob_size;
-    slice_size
+    div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES) * rob_size
 }
 
 fn gob_address_z(z: usize, block_height: usize, block_depth: usize, slice_size: usize) -> usize {
@@ -323,20 +322,17 @@ fn gob_offset(x: usize, y: usize) -> usize {
 // TODO: Is it faster to use 16 byte loads for each row on incomplete GOBs?
 // This may lead to better performance if the GOB is almost complete.
 
+const GOB_ROW_OFFSETS: [usize; GOB_HEIGHT_IN_BYTES] = [0, 16, 64, 80, 128, 144, 192, 208];
+
 // An optimized version of the gob_offset for an entire GOB worth of bytes.
 // The swizzled GOB is a contiguous region of 512 bytes.
 // The deswizzled GOB is a 64x8 2D region of memory, so we need to account for the pitch.
 fn deswizzle_complete_gob(dst: &mut [u8], src: &[u8], row_size_in_bytes: usize) {
     // Hard code each of the GOB_HEIGHT many rows.
     // This allows the compiler to optimize the copies with SIMD instructions.
-    deswizzle_gob_row(dst, row_size_in_bytes * 0, src, 0);
-    deswizzle_gob_row(dst, row_size_in_bytes * 1, src, 16);
-    deswizzle_gob_row(dst, row_size_in_bytes * 2, src, 64);
-    deswizzle_gob_row(dst, row_size_in_bytes * 3, src, 80);
-    deswizzle_gob_row(dst, row_size_in_bytes * 4, src, 128);
-    deswizzle_gob_row(dst, row_size_in_bytes * 5, src, 144);
-    deswizzle_gob_row(dst, row_size_in_bytes * 6, src, 192);
-    deswizzle_gob_row(dst, row_size_in_bytes * 7, src, 208);
+    for (i, offset) in GOB_ROW_OFFSETS.iter().enumerate() {
+        deswizzle_gob_row(dst, row_size_in_bytes * i, src, *offset);
+    }
 }
 
 fn deswizzle_gob_row(dst: &mut [u8], dst_offset: usize, src: &[u8], src_offset: usize) {
@@ -351,14 +347,9 @@ fn deswizzle_gob_row(dst: &mut [u8], dst_offset: usize, src: &[u8], src_offset: 
 
 // The swizzle functions are identical but with the addresses swapped.
 fn swizzle_complete_gob(dst: &mut [u8], src: &[u8], row_size_in_bytes: usize) {
-    swizzle_gob_row(dst, 0, src, row_size_in_bytes * 0);
-    swizzle_gob_row(dst, 16, src, row_size_in_bytes * 1);
-    swizzle_gob_row(dst, 64, src, row_size_in_bytes * 2);
-    swizzle_gob_row(dst, 80, src, row_size_in_bytes * 3);
-    swizzle_gob_row(dst, 128, src, row_size_in_bytes * 4);
-    swizzle_gob_row(dst, 144, src, row_size_in_bytes * 5);
-    swizzle_gob_row(dst, 192, src, row_size_in_bytes * 6);
-    swizzle_gob_row(dst, 208, src, row_size_in_bytes * 7);
+    for (i, offset) in GOB_ROW_OFFSETS.iter().enumerate() {
+        swizzle_gob_row(dst, *offset, src, row_size_in_bytes * i);
+    }
 }
 
 fn swizzle_gob_row(dst: &mut [u8], dst_offset: usize, src: &[u8], src_offset: usize) {

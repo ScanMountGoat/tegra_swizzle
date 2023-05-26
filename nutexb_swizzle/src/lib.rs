@@ -51,7 +51,7 @@ pub fn swizzle_data(
 
     let block_height = block_height(height_in_tiles);
 
-    let output_data = tegra_swizzle::swizzle::swizzle_block_linear(
+    tegra_swizzle::swizzle::swizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
         1,
@@ -59,9 +59,7 @@ pub fn swizzle_data(
         block_height,
         tile_size,
     )
-    .unwrap();
-
-    output_data
+    .unwrap()
 }
 
 pub fn swizzle<P: AsRef<Path>>(
@@ -93,7 +91,7 @@ pub fn deswizzle_data(
 
     let block_height = block_height(height_in_tiles);
 
-    let output_data = tegra_swizzle::swizzle::deswizzle_block_linear(
+    tegra_swizzle::swizzle::deswizzle_block_linear(
         width_in_tiles,
         height_in_tiles,
         1,
@@ -101,9 +99,7 @@ pub fn deswizzle_data(
         block_height,
         tile_size,
     )
-    .unwrap();
-
-    output_data
+    .unwrap()
 }
 
 // TODO: Avoid repetitive code.
@@ -266,10 +262,10 @@ fn get_swizzle_patterns_output(
         0
     };
 
-    return format!(
+    format!(
         "width: {:?}, height: {:?}\nx: {:032b}\ny: {:032b}",
         width, height, deswizzle_lut[x_pattern_index], deswizzle_lut[y_pattern_index]
-    );
+    )
 }
 
 fn mipmap_range(lut: &[i64]) -> (i64, i64) {
