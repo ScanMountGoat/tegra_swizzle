@@ -13,10 +13,10 @@ Textures are often stored in a swizzled layout to make texture accesses more cac
 
 It's important to note that swizzling affects memory addressing, so surfaces should be thought of as 2D or 3D arrays of bytes rather than pixels or 4x4 pixel blocks. The swizzling algorithm is agnostic to whether the data is RGBA8 or BC7 compressed. The format is used only for converting the surface dimensions from pixels to bytes. This avoids making assumptions about relationships between the size of a pixel or compressed block and the swizzling algorithm and results in more efficient code. The byte dimensions of swizzled surfaces are rounded up to integral dimensions in GOBs (64x8) bytes. The surface dimensions in pixels do not need to be powers of two for swizzling to work correctly.
 
-## C FFI 
-For using the library in other languages through C FFI, first build the library with `cargo build --release --features=ffi`. This requires the Rust toolchain to be installed.  
+## Building
+For using the library in other languages through C FFI, first build the library with `cargo build --release --features=ffi`. This requires the Rust toolchain to be installed. The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. See the ffi module in the docs.rs link for documentation. 
 
-The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. See the ffi module in the docs.rs link for documentation.
+For building plugins for the Nintendo Switch, see [skyline](https://github.com/ultimate-research/skyline-rs).
 
 ## Test Data
 This repository contains [sample data](https://github.com/ScanMountGoat/nutexb_swizzle/tree/main/swizzle_data) for testing swizzling and deswizzling. These files were generated using the swizzling implementation for Ryujinx emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   
