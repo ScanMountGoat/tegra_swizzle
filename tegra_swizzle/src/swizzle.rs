@@ -1,10 +1,10 @@
-//! Functions for swizzling and deswizzling a single mipmap of a surface.
+//! Functions for tiling and untiling a single mipmap of a surface.
 use crate::{
     blockdepth::block_depth, div_round_up, height_in_blocks, round_up, width_in_gobs, BlockHeight,
     SwizzleError, GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
 };
 
-/// Swizzles the bytes from `source` using the block linear swizzling algorithm.
+/// Tiles the bytes from `source` using the block linear algorithm.
 ///
 /// Returns [SwizzleError::NotEnoughData] if `source` does not have
 /// at least as many bytes as the result of [deswizzled_mip_size].
@@ -78,7 +78,7 @@ pub fn swizzle_block_linear(
     Ok(destination)
 }
 
-/// Deswizzles the bytes from `source` using the block linear swizzling algorithm.
+/// Untiles the bytes from `source` using the block linear algorithm.
 ///
 /// Returns [SwizzleError::NotEnoughData] if `source` does not have
 /// at least as many bytes as the result of [swizzled_mip_size].
@@ -172,9 +172,9 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
     let block_size_in_bytes = GOB_SIZE_IN_BYTES * block_width * block_height * block_depth;
     let block_height_in_bytes = GOB_HEIGHT_IN_BYTES * block_height;
 
-    // Swizzling is defined as a mapping from byte coordinates x,y,z -> x',y',z'.
+    // Tiling is defined as a mapping from byte coordinates x,y,z -> x',y',z'.
     // We step a GOB of bytes at a time to optimize the inner loop with SIMD loads/stores.
-    // GOBs always use the same swizzle patterns, so we can optimize swizzling complete 64x8 GOBs.
+    // GOBs always use the same tiling patterns, so we can optimize tiling complete 64x8 GOBs.
     // The partially filled GOBs along the right and bottom edge use a slower per byte implementation.
     for z0 in 0..depth {
         let offset_z = gob_address_z(z0, block_height, block_depth, slice_size);
@@ -258,7 +258,7 @@ fn swizzle_deswizzle_gob<const DESWIZZLE: bool>(
                     + x0
                     + x;
 
-                // Swap the addresses for swizzling vs deswizzling.
+                // Swap the addresses for tiling vs untiling.
                 if DESWIZZLE {
                     destination[linear_offset] = source[swizzled_offset];
                 } else {
@@ -284,7 +284,7 @@ fn slice_size(
 
 fn gob_address_z(z: usize, block_height: usize, block_depth: usize, slice_size: usize) -> usize {
     // Each "column" of blocks has block_depth many blocks.
-    // A 16x16x16 RGBA8 3d texture has the following deswizzled GOB indices.
+    // A 16x16x16 RGBA8 3d texture has the following untiled GOB indices.
     //  0, 16,
     //  1, 17,
     // ...
@@ -304,13 +304,13 @@ fn gob_address_y(
     block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE_IN_BYTES
 }
 
-// Code for offset_x and offset_y adapted from examples in the Tegra TRM page 1187.
+// Code for offset_x and offset_y adapted from examples in the Tegra TRM v1.3 page 1217.
 fn gob_address_x(x: usize, block_size_in_bytes: usize) -> usize {
     let block_x = x / GOB_WIDTH_IN_BYTES;
     block_x * block_size_in_bytes
 }
 
-// Code taken from examples in Tegra TRM page 1188.
+// Code taken from examples in Tegra TRM v1.3 page 1218.
 // Return the offset within the GOB for the byte at location (x, y).
 fn gob_offset(x: usize, y: usize) -> usize {
     // TODO: Optimize this?
@@ -325,8 +325,8 @@ fn gob_offset(x: usize, y: usize) -> usize {
 const GOB_ROW_OFFSETS: [usize; GOB_HEIGHT_IN_BYTES] = [0, 16, 64, 80, 128, 144, 192, 208];
 
 // An optimized version of the gob_offset for an entire GOB worth of bytes.
-// The swizzled GOB is a contiguous region of 512 bytes.
-// The deswizzled GOB is a 64x8 2D region of memory, so we need to account for the pitch.
+// The tiled GOB is a contiguous region of 512 bytes.
+// The untiled GOB is a 64x8 2D region of memory, so we need to account for the pitch.
 fn deswizzle_complete_gob(dst: &mut [u8], src: &[u8], row_size_in_bytes: usize) {
     // Hard code each of the GOB_HEIGHT many rows.
     // This allows the compiler to optimize the copies with SIMD instructions.
@@ -361,7 +361,7 @@ fn swizzle_gob_row(dst: &mut [u8], dst_offset: usize, src: &[u8], src_offset: us
     dst[0..16].copy_from_slice(&src[0..16]);
 }
 
-/// Calculates the size in bytes for the swizzled data for the given dimensions for the block linear format.
+/// Calculates the size in bytes for the tiled data for the given dimensions for the block linear format.
 /// The result of [swizzled_mip_size] will always be at least as large as [deswizzled_mip_size]
 /// for the same surface parameters.
 /// # Examples
@@ -409,7 +409,7 @@ pub const fn swizzled_mip_size(
     num_gobs * GOB_SIZE_IN_BYTES
 }
 
-/// Calculates the size in bytes for the deswizzled data for the given dimensions.
+/// Calculates the size in bytes for the untiled or linear data for the given dimensions.
 /// Compare with [swizzled_mip_size].
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
@@ -460,7 +460,7 @@ mod tests {
 
         // Test a value that isn't 4, 8, or 16.
         // Non standard values won't show up in practice.
-        // The swizzling algorithm should still handle these cases.
+        // The tiling algorithm should still handle these cases.
         let bytes_per_pixel = 12;
 
         let deswizzled_size = deswizzled_mip_size(width, height, 1, bytes_per_pixel);

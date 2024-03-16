@@ -2,14 +2,14 @@
 //!
 //! It's common for texture surfaces to be represented
 //! as a single allocated region of memory that contains all array layers and mipmaps.
-//! This also applies to the swizzled surfaces used for textures on the Tegra X1.
+//! This also applies to the tiled surfaces used for most textures on the Tegra X1.
 //!
-//! Use [deswizzle_surface] for reading swizzled surfaces into a single deswizzled `Vec<u8>`.
+//! Use [deswizzle_surface] for untiling surfaces into a single `Vec<u8>`.
 //! This output can be used as is for creating DDS files.
 //! Modern graphics APIs like Vulkan also support this dense layout for initializing all
 //! array layers and mipmaps for a texture in a single API call.
 //!
-//! Use [swizzle_surface] for writing a swizzled surface from a combined buffer like the result of [deswizzle_surface] or a DDS file.
+//! Use [swizzle_surface] for tiling a surface from a combined buffer like the result of [deswizzle_surface] or a DDS file.
 //! The result of [swizzle_surface] is the layout expected for many texture file formats for console games targeting the Tegra X1.
 //!
 //! # Examples
@@ -27,8 +27,8 @@ Layer 1 Mip 1
 Layer L-1 Mip M-1
 ```
 */
-//! The convention is for the non swizzled layout to be tightly packed.
-//! Swizzled surfaces add additional padding and alignment between layers and mipmaps.
+//! The convention is for the untiled or linear layout to be tightly packed.
+//! Tiled surfaces add additional padding and alignment between layers and mipmaps.
 use std::{cmp::max, num::NonZeroUsize};
 
 use crate::{
@@ -72,7 +72,7 @@ impl BlockDim {
     }
 }
 
-/// Swizzles all the array layers and mipmaps in `source` using the block linear algorithm
+/// Tiles all the array layers and mipmaps in `source` using the block linear algorithm
 /// to a combined vector with appropriate mipmap and layer alignment.
 ///
 /// Returns [SwizzleError::NotEnoughData] if `source` does not have
@@ -119,7 +119,7 @@ pub fn swizzle_surface(
 }
 
 // TODO: Find a way to simplify the parameters.
-/// Deswizzles all the array layers and mipmaps in `source` using the block linear algorithm
+/// Untiles all the array layers and mipmaps in `source` using the block linear algorithm
 /// to a new vector without any padding between layers or mipmaps.
 ///
 /// Returns [SwizzleError::NotEnoughData] if `source` does not have
@@ -283,7 +283,7 @@ fn surface_destination<const DESWIZZLE: bool>(
 }
 
 // TODO: Add examples.
-/// Calculates the size in bytes for the swizzled data for the given surface.
+/// Calculates the size in bytes for the tiled data for the given surface.
 /// Compare with [deswizzled_surface_size].
 ///
 /// Dimensions should be in pixels.
@@ -338,7 +338,7 @@ pub fn swizzled_surface_size(
 }
 
 // TODO: Add examples.
-/// Calculates the size in bytes for the deswizzled data for the given surface.
+/// Calculates the size in bytes for the untiled or linear data for the given surface.
 /// Compare with [swizzled_surface_size].
 ///
 /// Dimensions should be in pixels.
@@ -397,7 +397,7 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
         });
     }
 
-    // Swizzle the data and move to the next section.
+    // Tile or untile the data and move to the next section.
     swizzle_inner::<DESWIZZLE>(
         with,
         height,

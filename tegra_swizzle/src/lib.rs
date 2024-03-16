@@ -97,7 +97,7 @@ pub enum BlockHeight {
     ThirtyTwo = 32,
 }
 
-/// Errors than can occur while swizzling or deswizzling.
+/// Errors than can occur while tiling or untiling.
 #[derive(Debug)]
 pub enum SwizzleError {
     /// The source data does not contain enough bytes.
