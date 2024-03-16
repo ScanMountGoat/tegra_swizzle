@@ -1,9 +1,10 @@
 //! # tegra_swizzle
-//! tegra_swizzle is an unofficial CPU implementation for Tegra X1 surface swizzling.
+//! tegra_swizzle is an unofficial CPU implementation of the
+//! Tegra X1 block linear memory tiling for texture surfaces.
 //!
 //! ## Getting Started
-//! Swizzled texture data is often stored in a single buffer containing all arrays and mipmaps.
-//! This memory layout can be deswizzled all at once using [surface::deswizzle_surface].
+//! Tiled texture data is often stored in a single buffer containing all arrays and mipmaps.
+//! This memory layout can be untiled all at once using [surface::deswizzle_surface].
 /*!
 ```rust no_run
 use tegra_swizzle::surface::{BlockDim, deswizzle_surface};
@@ -51,14 +52,14 @@ let surface = deswizzle_surface(
 ```
  */
 //!
-//! # Block Linear Swizzling
+//! # Block Linear Memory Tiling
 //! The [surface::swizzle_surface] and [surface::deswizzle_surface] functions
-//! implement safe and efficient swizzling for the Tegra X1's block linear format.
+//! implement safe and efficient tiling and untiling for the Tegra X1's block linear format.
 //!
 //! Block linear arranges bytes of a texture surface into a 2D grid of blocks
 //! where blocks are arranged linearly in row-major order.
-//! The swizzled surface size is padded to integral dimensions in blocks, so
-//! swizzled surfaces may be larger than the corresponding data in row-major order.
+//! The tiled surface size is padded to integral dimensions in blocks, so
+//! tiled surfaces may be larger than the corresponding data in row-major order.
 //!
 //! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.

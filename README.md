@@ -21,7 +21,7 @@ For using the library in other languages through C FFI, first build the library 
 For building plugins for the Nintendo Switch, see [skyline](https://github.com/ultimate-research/skyline-rs).
 
 ## Test Data
-This repository contains [sample data](https://github.com/ScanMountGoat/tegra_swizzle/tree/main/swizzle_data) for testing swizzling and deswizzling. These files were generated using the swizzling implementation for Ryujinx emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   
+This repository contains [sample data](https://github.com/ScanMountGoat/tegra_swizzle/tree/main/block_linear) for testing tiling and untiling. These files were generated using the implementation for Ryujinx emulator due to difficulties in testing on actual hardware. For additional tests used by tegra_swizzle, see the source code and fuzz directories.   
 
 ## Documentation
 See the [tiling](tiling.md) page for a more formal description of tiling. While not rigorous enough to be considered a proof, this helps motivate some of the techniques and optimizations applied to this library. The [tiling and swizzling blog post](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) also provides some additional insights. Note that tegra_swizzle does not use the bit interleaving trick described in the blog post.
