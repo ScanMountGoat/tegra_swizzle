@@ -2,7 +2,7 @@
 name = "tegra_swizzle"
 version = "0.3.1"
 authors = ["ScanMountGoat <>"]
-description = "Unofficial CPU implementation for Tegra X1 memory tiling"
+description = "Unofficial CPU implementation for Tegra X1 texture memory tiling"
 license = "MIT"
 documentation = "https://docs.rs/tegra_swizzle"
 repository = "https://github.com/ScanMountGoat/tegra_swizzle"
