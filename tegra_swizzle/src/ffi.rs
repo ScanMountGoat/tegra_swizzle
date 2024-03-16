@@ -1,7 +1,7 @@
 //! Documentation for the C API.
 //!
 //! For easier integration, none of the FFI methods allocate memory.
-//! When swizzling or deswizzling, make sure to allocate
+//! When tiling or untiling, make sure to allocate
 //! the appropriate amount of memory for the destination array
 //! by calling functions like [swizzled_surface_size] or [deswizzled_surface_size].
 //!
