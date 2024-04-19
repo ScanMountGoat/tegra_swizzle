@@ -1,6 +1,6 @@
 # tegra_swizzle 
-<img src="https://raw.githubusercontent.com/ScanMountGoat/tegra_swizzle/main/tiled3d.png" height="auto" width="100%">
-<img src="https://raw.githubusercontent.com/ScanMountGoat/tegra_swizzle/main/linear3d.png" height="auto" width="100%">
+<img src="https://raw.githubusercontent.com/ScanMountGoat/tegra_swizzle/main/16x16x16_tiled.png" height="auto" width="100%">
+<img src="https://raw.githubusercontent.com/ScanMountGoat/tegra_swizzle/main/16x16x16_linear.png" height="auto" width="100%">
 
 [![Latest Version](https://img.shields.io/crates/v/tegra_swizzle.svg)](https://crates.io/crates/tegra_swizzle) [![docs.rs](https://docs.rs/tegra_swizzle/badge.svg)](https://docs.rs/tegra_swizzle)
 
