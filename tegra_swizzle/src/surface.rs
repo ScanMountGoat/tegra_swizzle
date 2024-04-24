@@ -277,9 +277,7 @@ fn surface_destination<const DESWIZZLE: bool>(
     }
 
     // Assume the calculated size is accurate, so don't reallocate later.
-    let mut result = Vec::new();
-    result.resize(surface_size, 0u8);
-    Ok(result)
+    Ok(vec![0u8; surface_size])
 }
 
 // TODO: Add examples.
