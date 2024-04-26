@@ -1,56 +1,10 @@
 //! # tegra_swizzle
-//! tegra_swizzle is an unofficial CPU implementation of the
+//! tegra_swizzle is a CPU implementation of the
 //! Tegra X1 block linear memory tiling for texture surfaces.
 //!
 //! ## Getting Started
-//! Tiled texture data is often stored in a single buffer containing all arrays and mipmaps.
+//! Tiled texture data in binary files is often stored in a single buffer containing all arrays and mipmaps.
 //! This memory layout can be untiled all at once using [surface::deswizzle_surface].
-/*!
-```rust no_run
-use tegra_swizzle::surface::{BlockDim, deswizzle_surface};
-use std::num::NonZeroUsize;
-# let swizzled_surface = vec![0u8; 10];
-
-// 16x16 BC7 cube map with 5 mipmaps.
-let surface = deswizzle_surface(
-    16,
-    16,
-    1,
-    &swizzled_surface,
-    BlockDim::block_4x4(),
-    None,
-    16,
-    5,
-    6,
-);
-
-// 128x128 R8G8B8A8 2D texture with no mipmaps.
-let surface = deswizzle_surface(
-    128,
-    128,
-    1,
-    &swizzled_surface,
-    BlockDim::uncompressed(),
-    None,
-    4,
-    1,
-    1,
-);
-
-// 16x16x16 R8G8B8A8 3D texture with no mipmaps.
-let surface = deswizzle_surface(
-    16,
-    16,
-    16,
-    &swizzled_surface,
-    BlockDim::uncompressed(),
-    None,
-    4,
-    1,
-    1,
-);
-```
- */
 //!
 //! # Block Linear Memory Tiling
 //! The [surface::swizzle_surface] and [surface::deswizzle_surface] functions

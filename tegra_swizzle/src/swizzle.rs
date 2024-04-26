@@ -1,4 +1,8 @@
 //! Functions for tiling and untiling a single mipmap of a surface.
+//!
+//! These functions are for advanced usages of tiling and untiling.
+//! Most texture formats should use the surface functions
+//! to handle mipmap and array layer alignment.
 use crate::{
     blockdepth::block_depth, div_round_up, height_in_blocks, round_up, width_in_gobs, BlockHeight,
     SwizzleError, GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
@@ -366,8 +370,11 @@ fn swizzle_gob_row(dst: &mut [u8], dst_offset: usize, src: &[u8], src_offset: us
 }
 
 /// Calculates the size in bytes for the tiled data for the given dimensions for the block linear format.
-/// The result of [swizzled_mip_size] will always be at least as large as [deswizzled_mip_size]
+///
+/// The result of [swizzled_mip_size] will always be aligned to the GOB size of 512 bytes.
+/// The result will be at least as large as [deswizzled_mip_size]
 /// for the same surface parameters.
+///
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**
@@ -422,7 +429,7 @@ pub const fn swizzled_mip_size(
 }
 
 /// Calculates the size in bytes for the untiled or linear data for the given dimensions.
-/// Compare with [swizzled_mip_size].
+///
 /// # Examples
 /// Uncompressed formats like R8G8B8A8 can use the width and height in pixels.
 /**

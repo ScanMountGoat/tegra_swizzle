@@ -75,10 +75,65 @@ impl BlockDim {
 /// Tiles all the array layers and mipmaps in `source` using the block linear algorithm
 /// to a combined vector with appropriate mipmap and layer alignment.
 ///
+/// The `width`, `height`, and `depth` are in terms of blocks with the pixels per block defined by `block_dim`.
+/// Use a `block_height_mip0` of [None] to infer the block height from the specified dimensions.
+///
 /// Returns [SwizzleError::NotEnoughData] if `source` does not have
 /// at least as many bytes as the result of [deswizzled_surface_size].
 ///
-/// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
+/// # Examples
+///
+/// Compressed formats should still use pixel dimensions and set the appropriate block dimensions.
+///
+/// ```rust no_run
+/// use tegra_swizzle::surface::{BlockDim, swizzle_surface};
+/// # let deswizzled_surface = vec![0u8; 10];
+///
+/// // 16x16 BC7 cube map with 5 mipmaps.
+/// let surface = swizzle_surface(
+///     16,
+///     16,
+///     1,
+///     &deswizzled_surface,
+///     BlockDim::block_4x4(),
+///     None,
+///     16,
+///     5,
+///     6,
+/// );
+/// ```
+///
+/// Uncompressed formats use a 1x1x1 pixel block.
+///
+/// ```rust no_run
+/// // 128x128 R8G8B8A8 2D texture with no mipmaps.
+/// use tegra_swizzle::surface::{BlockDim, swizzle_surface};
+/// # let deswizzled_surface = vec![0u8; 10];
+/// let surface = swizzle_surface(
+///     128,
+///     128,
+///     1,
+///     &deswizzled_surface,
+///     BlockDim::uncompressed(),
+///     None,
+///     4,
+///     1,
+///     1,
+/// );
+///
+/// // 16x16x16 R8G8B8A8 3D texture with no mipmaps.
+/// let surface = swizzle_surface(
+///     16,
+///     16,
+///     16,
+///     &deswizzled_surface,
+///     BlockDim::uncompressed(),
+///     None,
+///     4,
+///     1,
+///     1,
+/// );
+/// ```
 pub fn swizzle_surface(
     width: usize,
     height: usize,
@@ -122,10 +177,65 @@ pub fn swizzle_surface(
 /// Untiles all the array layers and mipmaps in `source` using the block linear algorithm
 /// to a new vector without any padding between layers or mipmaps.
 ///
+/// The `width`, `height`, and `depth` are in terms of blocks with the pixels per block defined by `block_dim`.
+/// Use a `block_height_mip0` of [None] to infer the block height from the specified dimensions.
+///
 /// Returns [SwizzleError::NotEnoughData] if `source` does not have
 /// at least as many bytes as the result of [swizzled_surface_size].
 ///
-/// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
+/// # Examples
+///
+/// Compressed formats should still use pixel dimensions and set the appropriate block dimensions.
+///
+/// ```rust no_run
+/// use tegra_swizzle::surface::{BlockDim, deswizzle_surface};
+/// # let swizzled_surface = vec![0u8; 10];
+///
+/// // 16x16 BC7 cube map with 5 mipmaps.
+/// let surface = deswizzle_surface(
+///     16,
+///     16,
+///     1,
+///     &swizzled_surface,
+///     BlockDim::block_4x4(),
+///     None,
+///     16,
+///     5,
+///     6,
+/// );
+/// ```
+///
+/// Uncompressed formats use a 1x1x1 pixel block.
+///
+/// ```rust no_run
+/// use tegra_swizzle::surface::{BlockDim, deswizzle_surface};
+/// # let swizzled_surface = vec![0u8; 10];
+/// // 128x128 R8G8B8A8 2D texture with no mipmaps.
+/// let surface = deswizzle_surface(
+///     128,
+///     128,
+///     1,
+///     &swizzled_surface,
+///     BlockDim::uncompressed(),
+///     None,
+///     4,
+///     1,
+///     1,
+/// );
+///
+/// // 16x16x16 R8G8B8A8 3D texture with no mipmaps.
+/// let surface = deswizzle_surface(
+///     16,
+///     16,
+///     16,
+///     &swizzled_surface,
+///     BlockDim::uncompressed(),
+///     None,
+///     4,
+///     1,
+///     1,
+/// );
+/// ```
 pub fn deswizzle_surface(
     width: usize,
     height: usize,
@@ -286,7 +396,7 @@ fn surface_destination<const DESWIZZLE: bool>(
 ///
 /// Dimensions should be in pixels.
 ///
-/// Set `block_height_mip0` to [None] to infer the block height from the specified dimensions.
+/// Use a `block_height_mip0` of [None] to infer the block height from the specified dimensions.
 pub fn swizzled_surface_size(
     width: usize,
     height: usize,
