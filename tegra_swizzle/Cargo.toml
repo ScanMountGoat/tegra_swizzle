@@ -2,7 +2,7 @@
 name = "tegra_swizzle"
 version = "0.3.2"
 authors = ["ScanMountGoat <>"]
-description = "Tegra X1 block linear texture memory tiling "
+description = "Tegra X1 block linear texture memory tiling"
 license = "MIT"
 documentation = "https://docs.rs/tegra_swizzle"
 repository = "https://github.com/ScanMountGoat/tegra_swizzle"
