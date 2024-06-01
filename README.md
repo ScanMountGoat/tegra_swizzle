@@ -16,7 +16,8 @@ It's important to note that tiling affects memory addressing, so surfaces should
 This technique has often been referred to in Switch modding communities as "swizzling", "deswizzling", "unswizzling", or "un-swizzling". It's not accurate to describe the block linear address bits as rearranged or "swizzled" from linear address bits for all texture sizes. Thankfully, common usages of the term "swizzling" in modding communities almost always refer specifically to the block linear memory layout algorithm. The term "swizzling" is kept in crate and function names to improve discoverability as this is likely what most programmers will search for.
 
 ## Building
-For using the library in other languages through C FFI, first build the library with `cargo build --release --features=ffi`. This requires the Rust toolchain to be installed. The generated `tegra_swizzle.dll` or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. See the ffi module in the docs.rs link for documentation. 
+For using the library in other languages through C FFI, first build the library with the following command:  
+`cargo rustc --release --crate-type=cdylib --features=ffi`. This requires the Rust toolchain to be installed. The generated `tegra_swizzle.dll`, `libtegra_swizzle.dylib`, or `tegra_swizzle.so` depending on the platform can be used the same way as any other compiled C library. See the ffi module in the docs.rs link for documentation. 
 
 For building plugins for the Nintendo Switch, see [skyline](https://github.com/ultimate-research/skyline-rs).
 
