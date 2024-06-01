@@ -7,6 +7,7 @@ use crate::{
     blockdepth::block_depth, div_round_up, height_in_blocks, round_up, width_in_gobs, BlockHeight,
     SwizzleError, GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
 };
+use alloc::{vec, vec::Vec};
 
 /// Tiles the bytes from `source` using the block linear algorithm.
 ///

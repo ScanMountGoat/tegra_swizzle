@@ -17,6 +17,12 @@
 //!
 //! Groups of 512 bytes form GOBs ("group of bytes") where each GOB is 64x8 bytes.
 //! The `block_height` parameter determines how many GOBs stack vertically to form a block.
+#![no_std]
+extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
+
 mod arrays;
 mod blockdepth;
 mod blockheight;
@@ -63,6 +69,7 @@ pub enum SwizzleError {
     },
 }
 
+#[cfg(feature = "std")]
 impl std::fmt::Display for SwizzleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -78,6 +85,7 @@ impl std::fmt::Display for SwizzleError {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for SwizzleError {}
 
 impl BlockHeight {

@@ -29,7 +29,8 @@ Layer L-1 Mip M-1
 */
 //! The convention is for the untiled or linear layout to be tightly packed.
 //! Tiled surfaces add additional padding and alignment between layers and mipmaps.
-use std::{cmp::max, num::NonZeroUsize};
+use alloc::{vec, vec::Vec};
+use core::{cmp::max, num::NonZeroUsize};
 
 use crate::{
     arrays::align_layer_size,
