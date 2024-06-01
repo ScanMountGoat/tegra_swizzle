@@ -846,8 +846,8 @@ mod tests {
 
     #[test]
     fn swizzle_surface_rgba_16_16_16() {
-        let input = include_bytes!("../../block_linear/16_16_16_rgba.bin");
-        let expected = include_bytes!("../../block_linear/16_16_16_rgba_tiled.bin");
+        let input = include_bytes!("../block_linear/16_16_16_rgba.bin");
+        let expected = include_bytes!("../block_linear/16_16_16_rgba_tiled.bin");
         let actual =
             swizzle_surface(16, 16, 16, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
         assert_eq!(expected, &actual[..]);
@@ -855,8 +855,8 @@ mod tests {
 
     #[test]
     fn deswizzle_surface_rgba_16_16_16() {
-        let input = include_bytes!("../../block_linear/16_16_16_rgba_tiled.bin");
-        let expected = include_bytes!("../../block_linear/16_16_16_rgba.bin");
+        let input = include_bytes!("../block_linear/16_16_16_rgba_tiled.bin");
+        let expected = include_bytes!("../block_linear/16_16_16_rgba.bin");
         let actual =
             deswizzle_surface(16, 16, 16, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
         assert_eq!(expected, &actual[..]);
@@ -864,8 +864,8 @@ mod tests {
 
     #[test]
     fn swizzle_surface_rgba_33_33_33() {
-        let input = include_bytes!("../../block_linear/33_33_33_rgba.bin");
-        let expected = include_bytes!("../../block_linear/33_33_33_rgba_tiled.bin");
+        let input = include_bytes!("../block_linear/33_33_33_rgba.bin");
+        let expected = include_bytes!("../block_linear/33_33_33_rgba_tiled.bin");
         let actual =
             swizzle_surface(33, 33, 33, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
         assert!(expected == &actual[..]);
@@ -873,8 +873,8 @@ mod tests {
 
     #[test]
     fn deswizzle_surface_rgba_33_33_33() {
-        let input = include_bytes!("../../block_linear/33_33_33_rgba_tiled.bin");
-        let expected = include_bytes!("../../block_linear/33_33_33_rgba.bin");
+        let input = include_bytes!("../block_linear/33_33_33_rgba_tiled.bin");
+        let expected = include_bytes!("../block_linear/33_33_33_rgba.bin");
         let actual =
             deswizzle_surface(33, 33, 33, input, BlockDim::uncompressed(), None, 4, 1, 1).unwrap();
         assert!(expected == &actual[..]);
