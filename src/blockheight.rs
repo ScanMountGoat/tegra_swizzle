@@ -26,7 +26,7 @@ let height = 300;
 let block_height_mip0 = block_height_mip0(div_round_up(height, 4));
 ```
  */
-pub fn block_height_mip0(height: usize) -> BlockHeight {
+pub fn block_height_mip0(height: u32) -> BlockHeight {
     let height_and_half = height + (height / 2);
 
     if height_and_half >= 128 {
@@ -68,8 +68,8 @@ for mip in 0..mipmap_count {
 }
 ```
  */
-pub fn mip_block_height(mip_height: usize, block_height_mip0: BlockHeight) -> BlockHeight {
-    let mut block_height = block_height_mip0 as usize;
+pub fn mip_block_height(mip_height: u32, block_height_mip0: BlockHeight) -> BlockHeight {
+    let mut block_height = block_height_mip0 as u32;
     while mip_height <= (block_height / 2) * 8 && block_height > 1 {
         block_height /= 2;
     }

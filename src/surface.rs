@@ -30,7 +30,7 @@ Layer L-1 Mip M-1
 //! The convention is for the untiled or linear layout to be tightly packed.
 //! Tiled surfaces add additional padding and alignment between layers and mipmaps.
 use alloc::{vec, vec::Vec};
-use core::{cmp::max, num::NonZeroUsize};
+use core::{cmp::max, num::NonZeroU32};
 
 use crate::{
     arrays::align_layer_size,
@@ -45,20 +45,20 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockDim {
     /// The width of the block in pixels.
-    pub width: NonZeroUsize,
+    pub width: NonZeroU32,
     /// The height of the block in pixels.
-    pub height: NonZeroUsize,
+    pub height: NonZeroU32,
     /// The depth of the block in pixels.
-    pub depth: NonZeroUsize,
+    pub depth: NonZeroU32,
 }
 
 impl BlockDim {
     /// A 1x1x1 block for formats that do not use block compression like R8G8B8A8.
     pub fn uncompressed() -> Self {
         BlockDim {
-            width: NonZeroUsize::new(1).unwrap(),
-            height: NonZeroUsize::new(1).unwrap(),
-            depth: NonZeroUsize::new(1).unwrap(),
+            width: NonZeroU32::new(1).unwrap(),
+            height: NonZeroU32::new(1).unwrap(),
+            depth: NonZeroU32::new(1).unwrap(),
         }
     }
 
@@ -66,9 +66,9 @@ impl BlockDim {
     /// This also includes DXT1, DXT3, and DXT5.
     pub fn block_4x4() -> Self {
         BlockDim {
-            width: NonZeroUsize::new(4).unwrap(),
-            height: NonZeroUsize::new(4).unwrap(),
-            depth: NonZeroUsize::new(1).unwrap(),
+            width: NonZeroU32::new(4).unwrap(),
+            height: NonZeroU32::new(4).unwrap(),
+            depth: NonZeroU32::new(1).unwrap(),
         }
     }
 }
@@ -136,15 +136,15 @@ impl BlockDim {
 /// );
 /// ```
 pub fn swizzle_surface(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: &[u8],
     block_dim: BlockDim, // TODO: Use None to indicate uncompressed?
     block_height_mip0: Option<BlockHeight>, // TODO: Make this optional in other functions as well?
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    layer_count: usize,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
     let mut result = surface_destination::<false>(
         width,
@@ -238,15 +238,15 @@ pub fn swizzle_surface(
 /// );
 /// ```
 pub fn deswizzle_surface(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: &[u8],
     block_dim: BlockDim,
     block_height_mip0: Option<BlockHeight>, // TODO: Make this optional in other functions as well?
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    layer_count: usize,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
     let mut result = surface_destination::<true>(
         width,
@@ -277,16 +277,16 @@ pub fn deswizzle_surface(
 }
 
 pub(crate) fn swizzle_surface_inner<const DESWIZZLE: bool>(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: &[u8],
     result: &mut [u8],
     block_dim: BlockDim,
     block_height_mip0: Option<BlockHeight>, // TODO: Make this optional in other functions as well?
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    layer_count: usize,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    layer_count: u32,
 ) -> Result<(), SwizzleError> {
     let block_width = block_dim.width.get();
     let block_height = block_dim.height.get();
@@ -343,14 +343,14 @@ pub(crate) fn swizzle_surface_inner<const DESWIZZLE: bool>(
 }
 
 fn surface_destination<const DESWIZZLE: bool>(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_dim: BlockDim,
     block_height_mip0: Option<BlockHeight>,
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    layer_count: usize,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    layer_count: u32,
     source: &[u8],
 ) -> Result<Vec<u8>, SwizzleError> {
     let swizzled_size = swizzled_surface_size(
@@ -399,14 +399,14 @@ fn surface_destination<const DESWIZZLE: bool>(
 ///
 /// Use a `block_height_mip0` of [None] to infer the block height from the specified dimensions.
 pub fn swizzled_surface_size(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_dim: BlockDim, // TODO: Use None to indicate uncompressed?
     block_height_mip0: Option<BlockHeight>, // TODO: Make this optional in other functions as well?
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    layer_count: usize,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    layer_count: u32,
 ) -> usize {
     let block_width = block_dim.width.get();
     let block_height = block_dim.height.get();
@@ -440,7 +440,7 @@ pub fn swizzled_surface_size(
     if layer_count > 1 {
         // We only need alignment between layers.
         let layer_size = align_layer_size(mip_size, height, depth, block_height_mip0, 1);
-        layer_size * layer_count
+        layer_size * layer_count as usize
     } else {
         mip_size
     }
@@ -452,13 +452,13 @@ pub fn swizzled_surface_size(
 ///
 /// Dimensions should be in pixels.
 pub fn deswizzled_surface_size(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_dim: BlockDim,
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    layer_count: usize,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    layer_count: u32,
 ) -> usize {
     // TODO: Avoid duplicating this code.
     let block_width = block_dim.width.get();
@@ -473,16 +473,16 @@ pub fn deswizzled_surface_size(
         layer_size += deswizzled_mip_size(mip_width, mip_height, mip_depth, bytes_per_pixel)
     }
 
-    layer_size * layer_count
+    layer_size * layer_count as usize
 }
 
 fn swizzle_mipmap<const DESWIZZLE: bool>(
-    with: usize,
-    height: usize,
-    depth: usize,
+    with: u32,
+    height: u32,
+    depth: u32,
     block_height: BlockHeight,
-    block_depth: usize,
-    bytes_per_pixel: usize,
+    block_depth: u32,
+    bytes_per_pixel: u32,
     source: &[u8],
     src_offset: &mut usize,
     dst: &mut [u8],
@@ -535,13 +535,13 @@ mod tests {
 
     // Use helper functions to shorten the test cases.
     fn swizzle_length(
-        width: usize,
-        height: usize,
+        width: u32,
+        height: u32,
         source_length: usize,
         is_compressed: bool,
-        bpp: usize,
-        mipmap_count: usize,
-        layer_count: usize,
+        bpp: u32,
+        mipmap_count: u32,
+        layer_count: u32,
     ) -> usize {
         swizzle_length_3d(
             width,
@@ -556,13 +556,13 @@ mod tests {
     }
 
     fn deswizzle_length(
-        width: usize,
-        height: usize,
+        width: u32,
+        height: u32,
         source_length: usize,
         is_compressed: bool,
-        bpp: usize,
-        mipmap_count: usize,
-        layer_count: usize,
+        bpp: u32,
+        mipmap_count: u32,
+        layer_count: u32,
     ) -> usize {
         deswizzle_length_3d(
             width,
@@ -577,14 +577,14 @@ mod tests {
     }
 
     fn swizzle_length_3d(
-        width: usize,
-        height: usize,
-        depth: usize,
+        width: u32,
+        height: u32,
+        depth: u32,
         source_length: usize,
         is_compressed: bool,
-        bpp: usize,
-        mipmap_count: usize,
-        layer_count: usize,
+        bpp: u32,
+        mipmap_count: u32,
+        layer_count: u32,
     ) -> usize {
         swizzle_surface(
             width,
@@ -606,14 +606,14 @@ mod tests {
     }
 
     fn deswizzle_length_3d(
-        width: usize,
-        height: usize,
-        depth: usize,
+        width: u32,
+        height: u32,
+        depth: u32,
         source_length: usize,
         is_compressed: bool,
-        bpp: usize,
-        mipmap_count: usize,
-        layer_count: usize,
+        bpp: u32,
+        mipmap_count: u32,
+        layer_count: u32,
     ) -> usize {
         deswizzle_surface(
             width,
@@ -797,7 +797,7 @@ mod tests {
         // Test a large 3D texture that likely won't fit in memory.
         // The input is clearly too small, so this should error instead of panic.
         let input = [0, 0, 0, 0];
-        let dim = u16::MAX as usize;
+        let dim = u16::MAX as u32;
         let result = swizzle_surface(
             dim,
             dim,
@@ -823,7 +823,7 @@ mod tests {
         // Test a large 3D texture that likely won't fit in memory.
         // The input is clearly too small, so this should error instead of panic.
         let input = [0, 0, 0, 0];
-        let dim = u16::MAX as usize;
+        let dim = u16::MAX as u32;
         let result = deswizzle_surface(
             dim,
             dim,

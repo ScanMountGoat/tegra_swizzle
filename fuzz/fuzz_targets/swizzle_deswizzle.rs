@@ -11,13 +11,13 @@ use tegra_swizzle::surface::BlockDim;
 
 #[derive(Debug)]
 struct Input {
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_height: tegra_swizzle::BlockHeight,
-    bytes_per_pixel: usize,
-    layer_count: usize,
-    mipmap_count: usize,
+    bytes_per_pixel: u32,
+    layer_count: u32,
+    mipmap_count: u32,
 }
 
 impl<'a> Arbitrary<'a> for Input {

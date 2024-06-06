@@ -1,14 +1,14 @@
 // Array alignment code ported from C# implementations of driver code by gdkchan.
 // The code can be found here: https://github.com/KillzXGaming/Switch-Toolbox/pull/419#issuecomment-959980096
 // This comes from the Ryujinx emulator: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
-use crate::{round_up, BlockHeight, GOB_SIZE_IN_BYTES};
+use crate::{BlockHeight, GOB_SIZE_IN_BYTES};
 
 pub fn align_layer_size(
     layer_size: usize,
-    height: usize,
-    depth: usize,
+    height: u32,
+    depth: u32,
     block_height_mip0: BlockHeight,
-    depth_in_gobs: usize,
+    depth_in_gobs: u32,
 ) -> usize {
     // Assume this is 1 based on the github comment linked above.
     // Don't support sparse textures for now.
@@ -16,7 +16,7 @@ pub fn align_layer_size(
 
     // TODO: Avoid mut here?
     let mut size = layer_size;
-    let mut gob_height = block_height_mip0 as usize;
+    let mut gob_height = block_height_mip0 as u32;
     let mut gob_depth = depth_in_gobs;
 
     if gob_blocks_in_tile_x < 2 {
@@ -30,15 +30,15 @@ pub fn align_layer_size(
         }
 
         let block_of_gobs_size = gob_height * gob_depth * GOB_SIZE_IN_BYTES;
-        let size_in_block_of_gobs = size / block_of_gobs_size;
+        let size_in_block_of_gobs = size / block_of_gobs_size as usize;
 
-        if size != size_in_block_of_gobs * block_of_gobs_size {
-            size = (size_in_block_of_gobs + 1) * block_of_gobs_size;
+        if size != size_in_block_of_gobs * block_of_gobs_size as usize {
+            size = (size_in_block_of_gobs + 1) * block_of_gobs_size as usize;
         }
     } else {
         let alignment = (gob_blocks_in_tile_x * GOB_SIZE_IN_BYTES) * gob_height * gob_depth;
 
-        size = round_up(size, alignment);
+        size = size.next_multiple_of(alignment as usize);
     }
 
     size
@@ -52,12 +52,12 @@ mod tests {
 
     // TODO: Avoid duplicating this code?
     fn aligned_size(
-        width: usize,
-        height: usize,
-        block_width: usize,
-        block_height: usize,
-        bpp: usize,
-        mipmap_count: usize,
+        width: u32,
+        height: u32,
+        block_width: u32,
+        block_height: u32,
+        bpp: u32,
+        mipmap_count: u32,
     ) -> usize {
         let block_height_mip0 = block_height_mip0(div_round_up(height, block_height));
 

@@ -3,20 +3,20 @@ use libfuzzer_sys::fuzz_target;
 
 extern crate arbitrary;
 use arbitrary::{Arbitrary, Result, Unstructured};
-use std::num::NonZeroUsize;
+use std::num::NonZeroU32;
 
 #[derive(Debug)]
 struct Input {
-    width: usize,
-    height: usize,
-    depth: usize,
-    block_width: NonZeroUsize,
-    block_height: NonZeroUsize,
+    width: u32,
+    height: u32,
+    depth: u32,
+    block_width: NonZeroU32,
+    block_height: NonZeroU32,
     block_height_mip0: tegra_swizzle::BlockHeight,
-    bytes_per_pixel: usize,
+    bytes_per_pixel: u32,
     input_size: usize,
-    layer_count: usize,
-    mipmap_count: usize,
+    layer_count: u32,
+    mipmap_count: u32,
 }
 
 impl<'a> Arbitrary<'a> for Input {
@@ -25,8 +25,8 @@ impl<'a> Arbitrary<'a> for Input {
             width: u.int_in_range(0..=4096)?,
             height: u.int_in_range(0..=4096)?,
             depth: 1,
-            block_width: NonZeroUsize::new(u.int_in_range(1..=16)?).unwrap(),
-            block_height: NonZeroUsize::new(u.int_in_range(1..=16)?).unwrap(),
+            block_width: NonZeroU32::new(u.int_in_range(1..=16)?).unwrap(),
+            block_height: NonZeroU32::new(u.int_in_range(1..=16)?).unwrap(),
             block_height_mip0: u.arbitrary()?,
             bytes_per_pixel: u.int_in_range(0..=32)?,
             input_size: u.int_in_range(0..=16777216)?,
@@ -48,7 +48,7 @@ fuzz_target!(|input: Input| {
         tegra_swizzle::surface::BlockDim {
             width: input.block_width,
             height: input.block_height,
-            depth: NonZeroUsize::new(1).unwrap(),
+            depth: NonZeroU32::new(1).unwrap(),
         },
         Some(input.block_height_mip0),
         input.bytes_per_pixel,

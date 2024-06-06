@@ -35,9 +35,9 @@ pub mod ffi;
 
 pub use blockheight::*;
 
-const GOB_WIDTH_IN_BYTES: usize = 64;
-const GOB_HEIGHT_IN_BYTES: usize = 8;
-const GOB_SIZE_IN_BYTES: usize = GOB_WIDTH_IN_BYTES * GOB_HEIGHT_IN_BYTES;
+const GOB_WIDTH_IN_BYTES: u32 = 64;
+const GOB_HEIGHT_IN_BYTES: u32 = 8;
+const GOB_SIZE_IN_BYTES: u32 = GOB_WIDTH_IN_BYTES * GOB_HEIGHT_IN_BYTES;
 
 // Block height can only have certain values based on the Tegra TRM page 1189 table 79.
 
@@ -100,7 +100,7 @@ impl BlockHeight {
     assert_eq!(None, BlockHeight::new(5));
     ```
     */
-    pub fn new(value: usize) -> Option<Self> {
+    pub fn new(value: u32) -> Option<Self> {
         match value {
             1 => Some(BlockHeight::One),
             2 => Some(BlockHeight::Two),
@@ -113,7 +113,7 @@ impl BlockHeight {
     }
 }
 
-const fn height_in_blocks(height: usize, block_height: usize) -> usize {
+const fn height_in_blocks(height: u32, block_height: u32) -> u32 {
     // Each block is block_height many GOBs tall.
     div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES)
 }
@@ -139,15 +139,11 @@ assert_eq!(n, div_round_up(n, 1));
 ```
  */
 #[inline]
-pub const fn div_round_up(x: usize, d: usize) -> usize {
+pub const fn div_round_up(x: u32, d: u32) -> u32 {
     (x + d - 1) / d
 }
 
-const fn round_up(x: usize, n: usize) -> usize {
-    ((x + n - 1) / n) * n
-}
-
-const fn width_in_gobs(width: usize, bytes_per_pixel: usize) -> usize {
+const fn width_in_gobs(width: u32, bytes_per_pixel: u32) -> u32 {
     div_round_up(width * bytes_per_pixel, GOB_WIDTH_IN_BYTES)
 }
 

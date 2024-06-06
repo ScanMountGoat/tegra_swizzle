@@ -6,11 +6,11 @@ use arbitrary::{Arbitrary, Result, Unstructured};
 
 #[derive(Debug)]
 struct Input {
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_height: tegra_swizzle::BlockHeight,
-    bytes_per_pixel: usize,
+    bytes_per_pixel: u32,
     input_size: usize,
 }
 

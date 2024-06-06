@@ -20,18 +20,18 @@ use crate::{surface::BlockDim, BlockHeight};
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn swizzle_surface(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: *const u8,
     source_len: usize,
     destination: *mut u8,
     destination_len: usize,
     block_dim: BlockDim,
-    block_height_mip0: usize,
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    array_count: usize,
+    block_height_mip0: u32,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    array_count: u32,
 ) {
     let source = std::slice::from_raw_parts(source, source_len);
     let mut destination = std::slice::from_raw_parts_mut(destination, destination_len);
@@ -62,18 +62,18 @@ pub unsafe extern "C" fn swizzle_surface(
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn deswizzle_surface(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: *const u8,
     source_len: usize,
     destination: *mut u8,
     destination_len: usize,
     block_dim: BlockDim,
-    block_height_mip0: usize,
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    array_count: usize,
+    block_height_mip0: u32,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    array_count: u32,
 ) {
     let source = std::slice::from_raw_parts(source, source_len);
     let mut destination = std::slice::from_raw_parts_mut(destination, destination_len);
@@ -100,14 +100,14 @@ pub unsafe extern "C" fn deswizzle_surface(
 /// `block_height_mip0` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn swizzled_surface_size(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_dim: BlockDim,
-    block_height_mip0: usize,
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    array_count: usize,
+    block_height_mip0: u32,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    array_count: u32,
 ) -> usize {
     crate::surface::swizzled_surface_size(
         width,
@@ -127,13 +127,13 @@ pub unsafe extern "C" fn swizzled_surface_size(
 /// All the fields of `block_dim` must be non zero.
 #[no_mangle]
 pub unsafe extern "C" fn deswizzled_surface_size(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_dim: BlockDim,
-    bytes_per_pixel: usize,
-    mipmap_count: usize,
-    array_count: usize,
+    bytes_per_pixel: u32,
+    mipmap_count: u32,
+    array_count: u32,
 ) -> usize {
     crate::surface::deswizzled_surface_size(
         width,
@@ -155,15 +155,15 @@ pub unsafe extern "C" fn deswizzled_surface_size(
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn swizzle_block_linear(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: *const u8,
     source_len: usize,
     destination: *mut u8,
     destination_len: usize,
-    block_height: usize,
-    bytes_per_pixel: usize,
+    block_height: u32,
+    bytes_per_pixel: u32,
 ) {
     let source = std::slice::from_raw_parts(source, source_len);
     let destination = std::slice::from_raw_parts_mut(destination, destination_len);
@@ -189,15 +189,15 @@ pub unsafe extern "C" fn swizzle_block_linear(
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn deswizzle_block_linear(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: *const u8,
     source_len: usize,
     destination: *mut u8,
     destination_len: usize,
-    block_height: usize,
-    bytes_per_pixel: usize,
+    block_height: u32,
+    bytes_per_pixel: u32,
 ) {
     let source = std::slice::from_raw_parts(source, source_len);
     let destination = std::slice::from_raw_parts_mut(destination, destination_len);
@@ -220,11 +220,11 @@ pub unsafe extern "C" fn deswizzle_block_linear(
 /// `block_height` must be one of the supported values in [BlockHeight].
 #[no_mangle]
 pub unsafe extern "C" fn swizzled_mip_size(
-    width: usize,
-    height: usize,
-    depth: usize,
-    block_height: usize,
-    bytes_per_pixel: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
+    block_height: u32,
+    bytes_per_pixel: u32,
 ) -> usize {
     crate::swizzle::swizzled_mip_size(
         width,
@@ -238,18 +238,18 @@ pub unsafe extern "C" fn swizzled_mip_size(
 /// See [crate::swizzle::deswizzled_mip_size].
 #[no_mangle]
 pub extern "C" fn deswizzled_mip_size(
-    width: usize,
-    height: usize,
-    depth: usize,
-    bytes_per_pixel: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
+    bytes_per_pixel: u32,
 ) -> usize {
     crate::swizzle::deswizzled_mip_size(width, height, depth, bytes_per_pixel)
 }
 
 /// See [crate::block_height_mip0].
 #[no_mangle]
-pub extern "C" fn block_height_mip0(height: usize) -> usize {
-    super::block_height_mip0(height) as usize
+pub extern "C" fn block_height_mip0(height: u32) -> u32 {
+    super::block_height_mip0(height) as u32
 }
 
 /// See [crate::mip_block_height].
@@ -257,8 +257,8 @@ pub extern "C" fn block_height_mip0(height: usize) -> usize {
 /// # Safety
 /// `block_height_mip0` must be one of the supported values in [BlockHeight].
 #[no_mangle]
-pub unsafe extern "C" fn mip_block_height(mip_height: usize, block_height_mip0: usize) -> usize {
-    super::mip_block_height(mip_height, BlockHeight::new(block_height_mip0).unwrap()) as usize
+pub unsafe extern "C" fn mip_block_height(mip_height: u32, block_height_mip0: u32) -> u32 {
+    super::mip_block_height(mip_height, BlockHeight::new(block_height_mip0).unwrap()) as u32
 }
 
 // TODO: Also test these methods.

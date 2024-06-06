@@ -1,7 +1,7 @@
 // Block depth code ported from C# implementations of driver code by gdkchan in Ryujinx.
 // The code can be found here: https://github.com/KillzXGaming/Switch-Toolbox/pull/419#issuecomment-959980096
 // License MIT: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
-pub const fn block_depth(depth: usize) -> usize {
+pub const fn block_depth(depth: u32) -> u32 {
     // TODO: Should this be an enum similar to BlockHeight?
     // This would only matter if it was part of the public API.
     let depth_and_half = depth + (depth / 2);
@@ -18,7 +18,7 @@ pub const fn block_depth(depth: usize) -> usize {
     }
 }
 
-pub fn mip_block_depth(mip_depth: usize, gob_depth: usize) -> usize {
+pub fn mip_block_depth(mip_depth: u32, gob_depth: u32) -> u32 {
     let mut gob_depth = gob_depth;
     while mip_depth <= gob_depth / 2 && gob_depth > 1 {
         gob_depth /= 2;

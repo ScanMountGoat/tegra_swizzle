@@ -4,7 +4,7 @@
 //! Most texture formats should use the surface functions
 //! to handle mipmap and array layer alignment.
 use crate::{
-    blockdepth::block_depth, div_round_up, height_in_blocks, round_up, width_in_gobs, BlockHeight,
+    blockdepth::block_depth, div_round_up, height_in_blocks, width_in_gobs, BlockHeight,
     SwizzleError, GOB_HEIGHT_IN_BYTES, GOB_SIZE_IN_BYTES, GOB_WIDTH_IN_BYTES,
 };
 use alloc::{vec, vec::Vec};
@@ -51,12 +51,12 @@ let output = swizzle_block_linear(
 ```
  */
 pub fn swizzle_block_linear(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: &[u8],
     block_height: BlockHeight,
-    bytes_per_pixel: usize,
+    bytes_per_pixel: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
     let mut destination =
         vec![0u8; swizzled_mip_size(width, height, depth, block_height, bytes_per_pixel)];
@@ -127,12 +127,12 @@ let output = deswizzle_block_linear(
 ```
  */
 pub fn deswizzle_block_linear(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: &[u8],
     block_height: BlockHeight,
-    bytes_per_pixel: usize,
+    bytes_per_pixel: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
     let mut destination = vec![0u8; deswizzled_mip_size(width, height, depth, bytes_per_pixel)];
 
@@ -161,16 +161,16 @@ pub fn deswizzle_block_linear(
 }
 
 pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     source: &[u8],
     destination: &mut [u8],
     block_height: BlockHeight,
-    block_depth: usize,
-    bytes_per_pixel: usize,
+    block_depth: u32,
+    bytes_per_pixel: u32,
 ) {
-    let block_height = block_height as usize;
+    let block_height = block_height as u32;
     let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
 
     let slice_size = slice_size(block_height, block_depth, width_in_gobs, height);
@@ -186,10 +186,10 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
     // GOBs always use the same tiling patterns, so we can optimize tiling complete 64x8 GOBs.
     // The partially filled GOBs along the right and bottom edge use a slower per byte implementation.
     for z0 in 0..depth {
-        let offset_z = gob_address_z(z0, block_height, block_depth, slice_size);
+        let offset_z = gob_address_z(z0, block_height, block_depth, slice_size as u32);
 
         // Step by a GOB of bytes in y.
-        for y0 in (0..height).step_by(GOB_HEIGHT_IN_BYTES) {
+        for y0 in (0..height).step_by(GOB_HEIGHT_IN_BYTES as usize) {
             let offset_y = gob_address_y(
                 y0,
                 block_height_in_bytes,
@@ -200,10 +200,10 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
             // Step by a GOB of bytes in x.
             // The bytes per pixel converts pixel coordinates to byte coordinates.
             // This assumes BCN formats pass in their width and height in number of blocks rather than pixels.
-            for x0 in (0..(width * bytes_per_pixel)).step_by(GOB_WIDTH_IN_BYTES) {
+            for x0 in (0..(width * bytes_per_pixel)).step_by(GOB_WIDTH_IN_BYTES as usize) {
                 let offset_x = gob_address_x(x0, block_size_in_bytes);
 
-                let gob_address = offset_z + offset_y + offset_x;
+                let gob_address = offset_z as usize + offset_y as usize + offset_x as usize;
 
                 // Check if we can use the fast path.
                 if x0 + GOB_WIDTH_IN_BYTES < width * bytes_per_pixel
@@ -216,15 +216,15 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
                     // Use optimized code to reassign bytes.
                     if DESWIZZLE {
                         deswizzle_complete_gob(
-                            &mut destination[linear_offset..],
+                            &mut destination[linear_offset as usize..],
                             &source[gob_address..],
-                            width * bytes_per_pixel,
+                            width as usize * bytes_per_pixel as usize,
                         );
                     } else {
                         swizzle_complete_gob(
                             &mut destination[gob_address..],
-                            &source[linear_offset..],
-                            width * bytes_per_pixel,
+                            &source[linear_offset as usize..],
+                            width as usize * bytes_per_pixel as usize,
                         );
                     }
                 } else {
@@ -250,18 +250,18 @@ pub(crate) fn swizzle_inner<const DESWIZZLE: bool>(
 fn swizzle_deswizzle_gob<const DESWIZZLE: bool>(
     destination: &mut [u8],
     source: &[u8],
-    x0: usize,
-    y0: usize,
-    z0: usize,
-    width: usize,
-    height: usize,
-    bytes_per_pixel: usize,
+    x0: u32,
+    y0: u32,
+    z0: u32,
+    width: u32,
+    height: u32,
+    bytes_per_pixel: u32,
     gob_address: usize,
 ) {
     for y in 0..GOB_HEIGHT_IN_BYTES {
         for x in 0..GOB_WIDTH_IN_BYTES {
             if y0 + y < height && x0 + x < width * bytes_per_pixel {
-                let swizzled_offset = gob_address + gob_offset(x, y);
+                let swizzled_offset = gob_address + gob_offset(x, y) as usize;
                 let linear_offset = (z0 * width * height * bytes_per_pixel)
                     + ((y0 + y) * width * bytes_per_pixel)
                     + x0
@@ -269,9 +269,9 @@ fn swizzle_deswizzle_gob<const DESWIZZLE: bool>(
 
                 // Swap the addresses for tiling vs untiling.
                 if DESWIZZLE {
-                    destination[linear_offset] = source[swizzled_offset];
+                    destination[linear_offset as usize] = source[swizzled_offset];
                 } else {
-                    destination[swizzled_offset] = source[linear_offset];
+                    destination[swizzled_offset] = source[linear_offset as usize];
                 }
             }
         }
@@ -281,17 +281,12 @@ fn swizzle_deswizzle_gob<const DESWIZZLE: bool>(
 // The gob address and slice size functions are ported from Ryujinx Emulator.
 // https://github.com/Ryujinx/Ryujinx/blob/master/Ryujinx.Graphics.Texture/BlockLinearLayout.cs
 // License MIT: https://github.com/Ryujinx/Ryujinx/blob/master/LICENSE.txt.
-fn slice_size(
-    block_height: usize,
-    block_depth: usize,
-    width_in_gobs: usize,
-    height: usize,
-) -> usize {
+fn slice_size(block_height: u32, block_depth: u32, width_in_gobs: u32, height: u32) -> usize {
     let rob_size = GOB_SIZE_IN_BYTES * block_height * block_depth * width_in_gobs;
-    div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES) * rob_size
+    div_round_up(height, block_height * GOB_HEIGHT_IN_BYTES) as usize * rob_size as usize
 }
 
-fn gob_address_z(z: usize, block_height: usize, block_depth: usize, slice_size: usize) -> usize {
+fn gob_address_z(z: u32, block_height: u32, block_depth: u32, slice_size: u32) -> u32 {
     // Each "column" of blocks has block_depth many blocks.
     // A 16x16x16 RGBA8 3d texture has the following untiled GOB indices.
     //  0, 16,
@@ -303,25 +298,25 @@ fn gob_address_z(z: usize, block_height: usize, block_depth: usize, slice_size: 
 }
 
 fn gob_address_y(
-    y: usize,
-    block_height_in_bytes: usize,
-    block_size_in_bytes: usize,
-    image_width_in_gobs: usize,
-) -> usize {
+    y: u32,
+    block_height_in_bytes: u32,
+    block_size_in_bytes: u32,
+    image_width_in_gobs: u32,
+) -> u32 {
     let block_y = y / block_height_in_bytes;
     let block_inner_row = y % block_height_in_bytes / GOB_HEIGHT_IN_BYTES;
     block_y * block_size_in_bytes * image_width_in_gobs + block_inner_row * GOB_SIZE_IN_BYTES
 }
 
 // Code for offset_x and offset_y adapted from examples in the Tegra TRM v1.3 page 1217.
-fn gob_address_x(x: usize, block_size_in_bytes: usize) -> usize {
+fn gob_address_x(x: u32, block_size_in_bytes: u32) -> u32 {
     let block_x = x / GOB_WIDTH_IN_BYTES;
     block_x * block_size_in_bytes
 }
 
 // Code taken from examples in Tegra TRM v1.3 page 1218.
 // Return the offset within the GOB for the byte at location (x, y).
-fn gob_offset(x: usize, y: usize) -> usize {
+fn gob_offset(x: u32, y: u32) -> u32 {
     // TODO: Optimize this?
     // TODO: Describe the pattern here?
     ((x % 64) / 32) * 256 + ((y % 8) / 2) * 64 + ((x % 32) / 16) * 32 + (y % 2) * 16 + (x % 16)
@@ -331,7 +326,7 @@ fn gob_offset(x: usize, y: usize) -> usize {
 // TODO: Is it faster to use 16 byte loads for each row on incomplete GOBs?
 // This may lead to better performance if the GOB is almost complete.
 
-const GOB_ROW_OFFSETS: [usize; GOB_HEIGHT_IN_BYTES] = [0, 16, 64, 80, 128, 144, 192, 208];
+const GOB_ROW_OFFSETS: [usize; GOB_HEIGHT_IN_BYTES as usize] = [0, 16, 64, 80, 128, 144, 192, 208];
 
 // An optimized version of the gob_offset for an entire GOB worth of bytes.
 // The tiled GOB is a contiguous region of 512 bytes.
@@ -411,22 +406,22 @@ assert_eq!(
 ```
  */
 pub const fn swizzled_mip_size(
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     block_height: BlockHeight,
-    bytes_per_pixel: usize,
+    bytes_per_pixel: u32,
 ) -> usize {
     // Assume each block is 1 GOB wide.
-    let width_in_gobs = width_in_gobs(width, bytes_per_pixel);
+    let width_in_gobs = width_in_gobs(width, bytes_per_pixel) as usize;
 
-    let height_in_blocks = height_in_blocks(height, block_height as usize);
-    let height_in_gobs = height_in_blocks * block_height as usize;
+    let height_in_blocks = height_in_blocks(height, block_height as u32);
+    let height_in_gobs = height_in_blocks as usize * block_height as usize;
 
-    let depth_in_gobs = round_up(depth, block_depth(depth));
+    let depth_in_gobs = depth.next_multiple_of(block_depth(depth));
 
-    let num_gobs = width_in_gobs * height_in_gobs * depth_in_gobs;
-    num_gobs * GOB_SIZE_IN_BYTES
+    let num_gobs = width_in_gobs * height_in_gobs * depth_in_gobs as usize;
+    num_gobs * GOB_SIZE_IN_BYTES as usize
 }
 
 /// Calculates the size in bytes for the untiled or linear data for the given dimensions.
@@ -458,12 +453,12 @@ assert_eq!(
 ```
  */
 pub const fn deswizzled_mip_size(
-    width: usize,
-    height: usize,
-    depth: usize,
-    bytes_per_pixel: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
+    bytes_per_pixel: u32,
 ) -> usize {
-    width * height * depth * bytes_per_pixel
+    width as usize * height as usize * depth as usize * bytes_per_pixel as usize
 }
 
 #[cfg(test)]
