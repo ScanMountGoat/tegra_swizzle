@@ -13,6 +13,6 @@ In the case where the tiled and detiled surface sizes in bytes are the same, the
 ## Implementations
 The evolution of techniques used for this repository are listed below. Note that later techniques tend to add additional complexity but generalize to more inputs.
 1. Lookup tables for specific width, height, and bytes per pixel values.
-2. Generated [bit patterns](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-tiling/) as a more efficient encoding of lookup tables for power of two textures.
+2. Generated [bit patterns](https://fgiesen.wordpress.com/2011/01/17/texture-tiling-and-swizzling/) as a more efficient encoding of lookup tables for power of two textures.
 3. A naive implementation of the tile function defined in the Tegra X1 TRM. Note that this is defined over byte coordinates x,y and not pixel coordinates. This means the same code can be applied to arbitrary formats since their block sizes and bytes per pixel simply define the transformation from pixel to byte coordinates.
 4. An optimized implementation of the tile function that compiles to SIMD instructions on supported platforms. The current implementation applies an optimized loop over 64x8 byte tiles (GOBs) and uses the naive implementation to handle the remaining bytes. 
