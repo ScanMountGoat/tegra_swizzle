@@ -6,7 +6,7 @@ The function `tile` is injective, meaning that if `l1` and `l2` are distinct add
 
 It might be the case that `T` has more elements than `L` due to padding or some other constraint, so untiling needs to be defined slightly more carefully. These "unmapped" elements are padding bytes and can be safely set to zero. The function `tile` is not invertible since some elements in `T` have no corresponding element in `L`. It is still possible to define a function `detile: T -> L` by looking up the corresponding address in `T` for each address in `L`. The "padding" bytes that don't appear in the mapping are never read for untiling.
 
-This means that only the function `tile` needs to be explicitly defined. For a specific pair of tiled and detiled images, this transformation can be represented as a lookup table for input and output addresses. See the [tile_data](https://github.com/ScanMountGoat/tegra_swizzle/tree/main/block_linear) for input output pairs for tiling and untiling.  
+This means that only the function `tile` needs to be explicitly defined. For a specific pair of tiled and detiled images, this transformation can be represented as a lookup table for input and output addresses.  
 
 In the case where the tiled and detiled surface sizes in bytes are the same, the function `tile` is also bijective. Being bijective means that each input address is mapped to a unique output address. This also implies the sets `L` and `T` have the same number of elements. `L` and `T` have the same size, and no two inputs are mapped to the same output, so it's possible to perform tiling and untiling in place without any memory allocations. This happens rarely in practice due to padding and alignment of tiled surfaces.
 
