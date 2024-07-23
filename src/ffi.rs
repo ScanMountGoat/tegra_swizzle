@@ -261,4 +261,121 @@ pub unsafe extern "C" fn mip_block_height(mip_height: u32, block_height_mip0: u3
     super::mip_block_height(mip_height, BlockHeight::new(block_height_mip0).unwrap()) as u32
 }
 
-// TODO: Also test these methods.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use alloc::vec;
+
+    #[test]
+    fn swizzle_surface_rgba_16_16_16() {
+        let input = include_bytes!("../block_linear/16_16_16_rgba.bin");
+        let expected = include_bytes!("../block_linear/16_16_16_rgba_tiled.bin");
+
+        let block_height = block_height_mip0(16);
+        let size =
+            unsafe { deswizzled_surface_size(16, 16, 16, BlockDim::uncompressed(), 4, 1, 1) };
+        let mut actual = vec![0u8; size];
+        unsafe {
+            swizzle_surface(
+                16,
+                16,
+                16,
+                input.as_ptr(),
+                input.len(),
+                actual.as_mut_ptr(),
+                actual.len(),
+                BlockDim::uncompressed(),
+                block_height,
+                4,
+                1,
+                1,
+            );
+        }
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_surface_rgba_16_16_16() {
+        let input = include_bytes!("../block_linear/16_16_16_rgba_tiled.bin");
+        let expected = include_bytes!("../block_linear/16_16_16_rgba.bin");
+
+        let block_height = block_height_mip0(16);
+        let size = unsafe {
+            swizzled_surface_size(16, 16, 16, BlockDim::uncompressed(), block_height, 4, 1, 1)
+        };
+        let mut actual = vec![0u8; size];
+        unsafe {
+            deswizzle_surface(
+                16,
+                16,
+                16,
+                input.as_ptr(),
+                input.len(),
+                actual.as_mut_ptr(),
+                actual.len(),
+                BlockDim::uncompressed(),
+                block_height,
+                4,
+                1,
+                1,
+            );
+        }
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn swizzle_rgba_16_16_16() {
+        let input = include_bytes!("../block_linear/16_16_16_rgba.bin");
+        let expected = include_bytes!("../block_linear/16_16_16_rgba_tiled.bin");
+
+        let size = unsafe { swizzled_mip_size(16, 16, 16, 1, 4) };
+        let mut actual = vec![0u8; size];
+        unsafe {
+            swizzle_block_linear(
+                16,
+                16,
+                16,
+                input.as_ptr(),
+                input.len(),
+                actual.as_mut_ptr(),
+                actual.len(),
+                1,
+                4,
+            );
+        }
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn deswizzle_rgba_16_16_16() {
+        let input = include_bytes!("../block_linear/16_16_16_rgba_tiled.bin");
+        let expected = include_bytes!("../block_linear/16_16_16_rgba.bin");
+
+        let size = deswizzled_mip_size(16, 16, 16, 4);
+        let mut actual = vec![0u8; size];
+        unsafe {
+            deswizzle_block_linear(
+                16,
+                16,
+                16,
+                input.as_ptr(),
+                input.len(),
+                actual.as_mut_ptr(),
+                actual.len(),
+                1,
+                4,
+            );
+        }
+
+        assert_eq!(expected, &actual[..]);
+    }
+
+    #[test]
+    fn mip_block_height_bcn() {
+        assert_eq!(4, unsafe {
+            mip_block_height(128 / 4, block_height_mip0(128 / 4))
+        });
+    }
+}
