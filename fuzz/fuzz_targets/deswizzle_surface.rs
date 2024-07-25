@@ -22,9 +22,9 @@ struct Input {
 impl<'a> Arbitrary<'a> for Input {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
         Ok(Input {
-            width: u.int_in_range(0..=256)?,
-            height: u.int_in_range(0..=256)?,
-            depth: u.int_in_range(0..=256)?,
+            width: u.arbitrary()?,
+            height: u.arbitrary()?,
+            depth: u.arbitrary()?,
             block_width: NonZeroU32::new(u.int_in_range(1..=16)?).unwrap(),
             block_height: NonZeroU32::new(u.int_in_range(1..=16)?).unwrap(),
             block_height_mip0: u.arbitrary()?,
@@ -40,7 +40,7 @@ fuzz_target!(|input: Input| {
     let swizzled = vec![0u8; input.input_size];
 
     // This should never panic even if the input size is incorrect.
-    tegra_swizzle::surface::deswizzle_surface(
+    let _ = tegra_swizzle::surface::deswizzle_surface(
         input.width,
         input.height,
         input.depth,

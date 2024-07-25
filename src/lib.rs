@@ -67,6 +67,14 @@ pub enum SwizzleError {
         expected_size: usize,
         actual_size: usize,
     },
+
+    /// The surface dimensions would overflow in size calculations.
+    InvalidDimensions {
+        width: u32,
+        height: u32,
+        depth: u32,
+        bytes_per_pixel: u32,
+    },
 }
 
 #[cfg(feature = "std")]
@@ -78,9 +86,14 @@ impl std::fmt::Display for SwizzleError {
                 actual_size,
             } => write!(
                 f,
-                "Not enough data. Expected {} bytes but found {} bytes.",
-                expected_size, actual_size
+                "Expected at least {expected_size} bytes but found {actual_size} bytes"
             ),
+            SwizzleError::InvalidDimensions {
+                width,
+                height,
+                depth,
+                bytes_per_pixel
+            } => write!(f, "Invalid surface dimensions {width}x{height}x{depth} with {bytes_per_pixel} bytes per pixel"),
         }
     }
 }

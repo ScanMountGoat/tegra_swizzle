@@ -146,6 +146,8 @@ pub fn swizzle_surface(
     mipmap_count: u32,
     layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
+    validate_surface(width, height, depth, bytes_per_pixel)?;
+
     let mut result = surface_destination::<false>(
         width,
         height,
@@ -248,6 +250,8 @@ pub fn deswizzle_surface(
     mipmap_count: u32,
     layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
+    validate_surface(width, height, depth, bytes_per_pixel)?;
+
     let mut result = surface_destination::<true>(
         width,
         height,
@@ -389,6 +393,32 @@ fn surface_destination<const DESWIZZLE: bool>(
 
     // Assume the calculated size is accurate, so don't reallocate later.
     Ok(vec![0u8; surface_size])
+}
+
+fn validate_surface(
+    width: u32,
+    height: u32,
+    depth: u32,
+    bytes_per_pixel: u32,
+) -> Result<(), SwizzleError> {
+    // Check dimensions to prevent overflow.
+    if width
+        .checked_mul(height)
+        .and_then(|u| u.checked_mul(depth))
+        .and_then(|u| u.checked_mul(bytes_per_pixel))
+        .is_none()
+        || width.checked_mul(bytes_per_pixel).is_none()
+        || depth.checked_add(depth / 2).is_none()
+    {
+        Err(SwizzleError::InvalidDimensions {
+            width,
+            height,
+            depth,
+            bytes_per_pixel,
+        })
+    } else {
+        Ok(())
+    }
 }
 
 // TODO: Add examples.
@@ -797,11 +827,10 @@ mod tests {
         // Test a large 3D texture that likely won't fit in memory.
         // The input is clearly too small, so this should error instead of panic.
         let input = [0, 0, 0, 0];
-        let dim = u16::MAX as u32;
         let result = swizzle_surface(
-            dim,
-            dim,
-            dim,
+            65535,
+            65535,
+            65535,
             &input,
             BlockDim::uncompressed(),
             None,
@@ -811,9 +840,11 @@ mod tests {
         );
         assert!(matches!(
             result,
-            Err(SwizzleError::NotEnoughData {
-                expected_size: 1125848368021500,
-                actual_size: 4
+            Err(SwizzleError::InvalidDimensions {
+                width: 65535,
+                height: 65535,
+                depth: 65535,
+                bytes_per_pixel: 4
             })
         ));
     }
@@ -823,11 +854,10 @@ mod tests {
         // Test a large 3D texture that likely won't fit in memory.
         // The input is clearly too small, so this should error instead of panic.
         let input = [0, 0, 0, 0];
-        let dim = u16::MAX as u32;
         let result = deswizzle_surface(
-            dim,
-            dim,
-            dim,
+            65535,
+            65535,
+            65535,
             &input,
             BlockDim::uncompressed(),
             None,
@@ -835,12 +865,13 @@ mod tests {
             1,
             1,
         );
-
         assert!(matches!(
             result,
-            Err(SwizzleError::NotEnoughData {
-                expected_size: 1125899906842624,
-                actual_size: 4
+            Err(SwizzleError::InvalidDimensions {
+                width: 65535,
+                height: 65535,
+                depth: 65535,
+                bytes_per_pixel: 4
             })
         ));
     }
