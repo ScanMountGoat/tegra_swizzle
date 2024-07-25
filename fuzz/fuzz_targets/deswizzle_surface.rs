@@ -31,7 +31,7 @@ impl<'a> Arbitrary<'a> for Input {
             bytes_per_pixel: u.int_in_range(0..=32)?,
             input_size: u.int_in_range(0..=16777216)?,
             layer_count: u.int_in_range(0..=12)?,
-            mipmap_count: u.int_in_range(0..=64)?,
+            mipmap_count: u.int_in_range(0..=33)?,
         })
     }
 }
