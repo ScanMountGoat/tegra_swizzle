@@ -500,25 +500,25 @@ mod tests {
     #[test]
     fn swizzle_empty() {
         let result = swizzle_block_linear(32, 32, 1, &[], BlockHeight::Sixteen, 4);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SwizzleError::NotEnoughData {
                 actual_size: 0,
                 expected_size: 4096
             })
-        ));
+        );
     }
 
     #[test]
     fn deswizzle_empty() {
         let result = deswizzle_block_linear(32, 32, 1, &[], BlockHeight::Sixteen, 4);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SwizzleError::NotEnoughData {
                 actual_size: 0,
                 expected_size: 16384
             })
-        ));
+        );
     }
 
     #[test]
@@ -531,26 +531,26 @@ mod tests {
             BlockHeight::Sixteen,
             16,
         );
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SwizzleError::NotEnoughData {
                 actual_size: 4095,
                 expected_size: 4096
             })
-        ));
+        );
     }
 
     #[test]
     fn deswizzle_bc7_64_64_not_enough_data() {
         let result =
             deswizzle_block_linear(64 / 4, 64 / 4, 1, &[0u8; 64 * 64], BlockHeight::Sixteen, 16);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SwizzleError::NotEnoughData {
                 actual_size: 4096,
                 expected_size: 32768
             })
-        ));
+        );
     }
 
     #[test]

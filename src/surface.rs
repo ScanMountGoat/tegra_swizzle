@@ -146,7 +146,7 @@ pub fn swizzle_surface(
     mipmap_count: u32,
     layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
-    validate_surface(width, height, depth, bytes_per_pixel)?;
+    validate_surface(width, height, depth, bytes_per_pixel, mipmap_count)?;
 
     let mut result = surface_destination::<false>(
         width,
@@ -250,7 +250,7 @@ pub fn deswizzle_surface(
     mipmap_count: u32,
     layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
-    validate_surface(width, height, depth, bytes_per_pixel)?;
+    validate_surface(width, height, depth, bytes_per_pixel, mipmap_count)?;
 
     let mut result = surface_destination::<true>(
         width,
@@ -400,6 +400,7 @@ fn validate_surface(
     height: u32,
     depth: u32,
     bytes_per_pixel: u32,
+    mipmap_count: u32,
 ) -> Result<(), SwizzleError> {
     // Check dimensions to prevent overflow.
     if width
@@ -409,12 +410,14 @@ fn validate_surface(
         .is_none()
         || width.checked_mul(bytes_per_pixel).is_none()
         || depth.checked_add(depth / 2).is_none()
+        || mipmap_count > u32::BITS
     {
-        Err(SwizzleError::InvalidDimensions {
+        Err(SwizzleError::InvalidSurface {
             width,
             height,
             depth,
             bytes_per_pixel,
+            mipmap_count,
         })
     } else {
         Ok(())
@@ -800,26 +803,26 @@ mod tests {
     fn swizzle_surface_not_enough_data() {
         let input = [0, 0, 0, 0];
         let result = swizzle_surface(16, 16, 16, &input, BlockDim::uncompressed(), None, 4, 1, 1);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SwizzleError::NotEnoughData {
                 expected_size: 16384,
                 actual_size: 4
             })
-        ));
+        );
     }
 
     #[test]
     fn deswizzle_surface_not_enough_data() {
         let input = [0, 0, 0, 0];
         let result = deswizzle_surface(4, 4, 1, &input, BlockDim::uncompressed(), None, 4, 1, 1);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SwizzleError::NotEnoughData {
                 expected_size: 512,
                 actual_size: 4
             })
-        ));
+        );
     }
 
     #[test]
@@ -838,15 +841,16 @@ mod tests {
             1,
             1,
         );
-        assert!(matches!(
+        assert_eq!(
             result,
-            Err(SwizzleError::InvalidDimensions {
+            Err(SwizzleError::InvalidSurface {
                 width: 65535,
                 height: 65535,
                 depth: 65535,
-                bytes_per_pixel: 4
+                bytes_per_pixel: 4,
+                mipmap_count: 1
             })
-        ));
+        );
     }
 
     #[test]
@@ -865,15 +869,50 @@ mod tests {
             1,
             1,
         );
-        assert!(matches!(
+        assert_eq!(
             result,
-            Err(SwizzleError::InvalidDimensions {
+            Err(SwizzleError::InvalidSurface {
                 width: 65535,
                 height: 65535,
                 depth: 65535,
-                bytes_per_pixel: 4
+                bytes_per_pixel: 4,
+                mipmap_count: 1
             })
-        ));
+        );
+    }
+
+    #[test]
+    fn swizzle_invalid_mipmaps() {
+        // A 32-bit integer dimension can only have 32 mipmaps.
+        let input = [0; 4];
+        let result = swizzle_surface(1, 1, 1, &input, BlockDim::uncompressed(), None, 4, 33, 1);
+        assert_eq!(
+            result,
+            Err(SwizzleError::InvalidSurface {
+                width: 1,
+                height: 1,
+                depth: 1,
+                bytes_per_pixel: 4,
+                mipmap_count: 33,
+            })
+        );
+    }
+
+    #[test]
+    fn deswizzle_surface_invalid_mipmaps() {
+        // A 32-bit integer dimension can only have 32 mipmaps.
+        let input = [0; 4];
+        let result = deswizzle_surface(1, 1, 1, &input, BlockDim::uncompressed(), None, 4, 33, 1);
+        assert_eq!(
+            result,
+            Err(SwizzleError::InvalidSurface {
+                width: 1,
+                height: 1,
+                depth: 1,
+                bytes_per_pixel: 4,
+                mipmap_count: 33,
+            })
+        );
     }
 
     #[test]

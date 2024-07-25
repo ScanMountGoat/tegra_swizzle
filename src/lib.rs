@@ -58,7 +58,7 @@ pub enum BlockHeight {
 }
 
 /// Errors than can occur while tiling or untiling.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SwizzleError {
     /// The source data does not contain enough bytes.
     /// See the documentation for functions like [surface::swizzle_surface] and [surface::deswizzle_surface]
@@ -69,11 +69,12 @@ pub enum SwizzleError {
     },
 
     /// The surface dimensions would overflow in size calculations.
-    InvalidDimensions {
+    InvalidSurface {
         width: u32,
         height: u32,
         depth: u32,
         bytes_per_pixel: u32,
+        mipmap_count: u32,
     },
 }
 
@@ -88,12 +89,13 @@ impl std::fmt::Display for SwizzleError {
                 f,
                 "Expected at least {expected_size} bytes but found {actual_size} bytes"
             ),
-            SwizzleError::InvalidDimensions {
+            SwizzleError::InvalidSurface {
                 width,
                 height,
                 depth,
-                bytes_per_pixel
-            } => write!(f, "Invalid surface dimensions {width}x{height}x{depth} with {bytes_per_pixel} bytes per pixel"),
+                bytes_per_pixel,
+                mipmap_count,
+            } => write!(f, "Invalid surface dimensions {width}x{height}x{depth} with {bytes_per_pixel} bytes per pixel and {mipmap_count} mipmaps"),
         }
     }
 }
