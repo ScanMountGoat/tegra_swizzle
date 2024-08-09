@@ -146,6 +146,17 @@ pub fn swizzle_surface(
     mipmap_count: u32,
     layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
+    // Check for empty surfaces first to more reliably handle overflow.
+    if width == 0
+        || height == 0
+        || depth == 0
+        || bytes_per_pixel == 0
+        || mipmap_count == 0
+        || layer_count == 0
+    {
+        return Ok(Vec::new());
+    }
+
     validate_surface(width, height, depth, bytes_per_pixel, mipmap_count)?;
 
     let mut result = surface_destination::<false>(
@@ -250,6 +261,17 @@ pub fn deswizzle_surface(
     mipmap_count: u32,
     layer_count: u32,
 ) -> Result<Vec<u8>, SwizzleError> {
+    // Check for empty surfaces first to more reliably handle overflow.
+    if width == 0
+        || height == 0
+        || depth == 0
+        || bytes_per_pixel == 0
+        || mipmap_count == 0
+        || layer_count == 0
+    {
+        return Ok(Vec::new());
+    }
+
     validate_surface(width, height, depth, bytes_per_pixel, mipmap_count)?;
 
     let mut result = surface_destination::<true>(
@@ -564,6 +586,8 @@ fn swizzle_mipmap<const DESWIZZLE: bool>(
 
 #[cfg(test)]
 mod tests {
+    use core::u32;
+
     use super::*;
 
     // Use helper functions to shorten the test cases.
@@ -741,6 +765,25 @@ mod tests {
     }
 
     #[test]
+    fn swizzle_surface_potential_overflow_length() {
+        assert_eq!(0, swizzle_length_3d(u32::MAX, 0, 0, 0, false, 4, 1, 1));
+        assert_eq!(0, swizzle_length_3d(0, u32::MAX, 0, 0, false, 4, 1, 1));
+        assert_eq!(0, swizzle_length_3d(0, 0, u32::MAX, 0, false, 4, 1, 1));
+        assert_eq!(
+            0,
+            swizzle_length_3d(u32::MAX, u32::MAX, u32::MAX, 0, false, 0, 1, 1)
+        );
+        assert_eq!(
+            0,
+            swizzle_length_3d(u32::MAX, u32::MAX, u32::MAX, 0, false, 1, 0, 1)
+        );
+        assert_eq!(
+            0,
+            swizzle_length_3d(u32::MAX, u32::MAX, u32::MAX, 0, false, 1, 1, 0)
+        );
+    }
+
+    #[test]
     fn deswizzle_surface_nutexb_length() {
         // Sizes and parameters taken from Smash Ultimate nutexb files.
         // The deswizzled size is estimated as the product of the mip sizes sum and layer count.
@@ -797,6 +840,15 @@ mod tests {
             deswizzle_length(512, 512, 2113536, true, 16, 10, 6)
         );
         assert_eq!(32928, deswizzle_length(64, 64, 49152, true, 16, 7, 6));
+    }
+
+    #[test]
+    fn deswizzle_surface_potential_overflow_length() {
+        assert_eq!(0, deswizzle_length(u32::MAX, 0, 0, false, 4, 1, 6));
+        assert_eq!(0, deswizzle_length(0, u32::MAX, 0, false, 4, 1, 6));
+        assert_eq!(0, deswizzle_length(u32::MAX, u32::MAX, 0, false, 0, 1, 6));
+        assert_eq!(0, deswizzle_length(u32::MAX, u32::MAX, 0, false, 4, 0, 6));
+        assert_eq!(0, deswizzle_length(u32::MAX, u32::MAX, 0, false, 4, 1, 0));
     }
 
     #[test]
