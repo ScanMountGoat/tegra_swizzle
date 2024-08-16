@@ -31,7 +31,7 @@ fuzz_target!(|input: Input| {
     let swizzled = vec![0u8; input.input_size];
 
     // This should never panic even if the input size is incorrect.
-    tegra_swizzle::swizzle::deswizzle_block_linear(
+    let _ = tegra_swizzle::swizzle::deswizzle_block_linear(
         input.width,
         input.height,
         input.depth,
