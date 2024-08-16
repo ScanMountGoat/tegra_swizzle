@@ -1,6 +1,6 @@
 [package]
 name = "tegra_swizzle"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["ScanMountGoat <>"]
 description = "Tegra X1 block linear texture memory tiling"
 license = "MIT"
