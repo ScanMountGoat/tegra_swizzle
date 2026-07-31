@@ -3,9 +3,9 @@
 The goal is to convert memory addresses from a optimized memory layout used by the GPU and many texture file formats to and from a standard row-major layout supported by many programs. While memory addresses are single values, these layout conversions become much easier to implement by considering byte coordinates. This produces the following Python pseudocode. The actual implementation also needs to handle  additional coordinates like the mip level and array layer.
 
 ```python
-for x in range(width_in_bytes):
+for z in range(depth_in_bytes):
     for y in range(height_in_bytes):
-        for z in range(depth_in_bytes):
+        for x in range(width_in_bytes):
             if untile:
                 output[row_major(x, y, z)] = input[tiled(x, y, z)]
             else:
