@@ -1,14 +1,26 @@
 # Memory Tiling
 ## Introduction
+The goal is to convert memory addresses from a optimized memory layout used by the GPU and many texture file formats to and from a standard row-major layout supported by many programs. While memory addresses are single values, these layout conversions become much easier to implement by considering byte coordinates. This produces the following Python pseudocode. The actual implementation also needs to handle  additional coordinates like the mip level and array layer.
+
+```python
+for x in range(width_in_bytes):
+    for y in range(height_in_bytes):
+        for z in range(depth_in_bytes):
+            if untile:
+                output[row_major(x, y, z)] = input[tiled(x, y, z)]
+            else:
+                output[tiled(x, y, z)] = input[row_major(x, y, z)]
+```
+
 The Nutexb/Tegra X1 texture tiling can be described as a function `tile: L -> S` where `L` is the set of linear input addresses and `T` is the set of tiled output addresses. The function `tile` maps or "tiles" a pixel address in `L` to some corresponding address in `T`. The operation of mapping tiled addresses in `T` to their original linear address in `L` is called "untiling".
 
 The function `tile` is injective, meaning that if `l1` and `l2` are distinct addresses in `L`, their corresponding output addresses `tile(l1)` and `tile(l2)` in `T` are distinct. If this were not the case, two different pixels could be mapped to the same tiled pixel location, causing information loss. This implies that the set of tiled addresses `T` must be at least as large as `L`. 
 
-It might be the case that `T` has more elements than `L` due to padding or some other constraint, so untiling needs to be defined slightly more carefully. These "unmapped" elements are padding bytes and can be safely set to zero. The function `tile` is not invertible since some elements in `T` have no corresponding element in `L`. It is still possible to define a function `detile: T -> L` by looking up the corresponding address in `T` for each address in `L`. The "padding" bytes that don't appear in the mapping are never read for untiling.
+It might be the case that `T` has more elements than `L` due to padding or some other constraint, so untiling needs to be defined slightly more carefully. These "unmapped" elements are padding bytes and can be safely set to zero. The function `tile` is not invertible since some elements in `T` have no corresponding element in `L`. It is still possible to define a function `untile: T -> L` by looking up the corresponding address in `T` for each address in `L`. The "padding" bytes that don't appear in the mapping are never read for untiling.
 
 This means that only the function `tile` needs to be explicitly defined. For a specific pair of tiled and detiled images, this transformation can be represented as a lookup table for input and output addresses.  
 
-In the case where the tiled and detiled surface sizes in bytes are the same, the function `tile` is also bijective. Being bijective means that each input address is mapped to a unique output address. This also implies the sets `L` and `T` have the same number of elements. `L` and `T` have the same size, and no two inputs are mapped to the same output, so it's possible to perform tiling and untiling in place without any memory allocations. This happens rarely in practice due to padding and alignment of tiled surfaces.
+In the case where the tiled and untiled surface sizes in bytes are the same, the function `tile` is also bijective. Being bijective means that each input address is mapped to a unique output address. This also implies the sets `L` and `T` have the same number of elements. `L` and `T` have the same size, and no two inputs are mapped to the same output, so it's possible to perform tiling and untiling in place without any memory allocations. This happens rarely in practice due to padding and alignment of tiled surfaces.
 
 ## Implementations
 The evolution of techniques used for this repository are listed below. Note that later techniques tend to add additional complexity but generalize to more inputs.
