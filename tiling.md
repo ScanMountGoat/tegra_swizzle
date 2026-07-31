@@ -7,9 +7,9 @@ for z in range(depth_in_bytes):
     for y in range(height_in_bytes):
         for x in range(width_in_bytes):
             if untile:
-                output[row_major(x, y, z)] = input[tiled(x, y, z)]
+                output[row_major(x, y, z, ...)] = input[tiled(x, y, z, ...)]
             else:
-                output[tiled(x, y, z)] = input[row_major(x, y, z)]
+                output[tiled(x, y, z, ...)] = input[row_major(x, y, z, ...)]
 ```
 
 The Nutexb/Tegra X1 texture tiling can be described as a function `tile: L -> S` where `L` is the set of linear input addresses and `T` is the set of tiled output addresses. The function `tile` maps or "tiles" a pixel address in `L` to some corresponding address in `T`. The operation of mapping tiled addresses in `T` to their original linear address in `L` is called "untiling".
